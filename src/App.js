@@ -195,7 +195,6 @@ export default function EggOrderApp() {
   const floorKeys = Object.keys(byFloor).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
   const totalEggs = orders.reduce((s, o) => s + o.count, 0);
-  const totalDelivered = orders.filter((o) => o.delivered).reduce((s, o) => s + o.count, 0);
   const totalRevenue = orders.reduce((s, o) => s + (o.count * EGG_PRICE), 0);
   const totalPaidAmount = orders.filter((o) => o.paid).reduce((s, o) => s + (o.count * EGG_PRICE), 0);
   const totalUnpaidAmount = totalRevenue - totalPaidAmount;
