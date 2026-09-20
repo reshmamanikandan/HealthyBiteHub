@@ -20,7 +20,7 @@ import { getDatabase, ref, onValue, push, update, remove } from "firebase/databa
 
 // Configuration
 const EGG_PRICE = 10; // Price per egg in INR
-const ADMIN_UPI_ID = "9876543210@upi"; // Replace with your actual UPI ID
+const ADMIN_UPI_ID = "reshmamanikanda17@oksbi"; // Replace with your actual UPI ID
 
 const firebaseConfig = {
   apiKey: "AIzaSyAk5fc_KBjXNXNQVjpCJmPmhyWkmjn2q1s",
