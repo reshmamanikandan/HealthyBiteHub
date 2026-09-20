@@ -8,13 +8,14 @@ import {
   FaPhone, 
   FaUser, 
   FaUtensils, 
-  FaClipboardList, 
-  FaArchive,
   FaQrcode,
   FaWallet,
-  FaLock,
   FaHistory,
-  FaCalendarAlt
+  FaCalendarAlt,
+  FaSearch,
+  FaTable,
+  FaMoneyBillWave,
+  FaEdit
 } from "react-icons/fa";
 
 import { initializeApp } from "firebase/app";
@@ -40,7 +41,7 @@ const FONT_STYLE = `
 @import url('https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap');
 .egg-app { font-family: 'Work Sans', sans-serif; background:#FAF6EE; color:#2E2318; min-height:100vh; }
 .egg-app h1, .egg-app h2, .egg-app .headline { font-family:'Bitter', serif; }
-.egg-app input:focus { outline:none; border-color:#D98D1B !important; box-shadow:0 0 0 3px rgba(242,169,59,0.25); }
+.egg-app input:focus, .egg-app select:focus { outline:none; border-color:#D98D1B !important; box-shadow:0 0 0 3px rgba(242,169,59,0.25); }
 .egg-app button { font-family:'Work Sans', sans-serif; cursor:pointer; }
 .egg-app ::placeholder { color:#B3A692; }
 `;
@@ -57,56 +58,63 @@ function formatDate(timestamp) {
   });
 }
 
-function isToday(timestamp) {
-  if (!timestamp) return false;
+function formatDateShort(timestamp) {
+  if (!timestamp) return "";
   const d = new Date(timestamp);
-  const today = new Date();
-  return d.getDate() === today.getDate() &&
-    d.getMonth() === today.getMonth() &&
-    d.getFullYear() === today.getFullYear();
+  return d.toISOString().split('T')[0]; // YYYY-MM-DD format
 }
 
 export default function EggOrderApp() {
   const [isAdmin, setIsAdmin] = useState(false);
-  const [view, setView] = useState("order");
+  const [view, setView] = useState("order"); // 'order', 'history', 'admin_kitchen', 'admin_all'
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Filters
-  const [adminFilter, setAdminFilter] = useState("today"); // 'today' or 'all'
+  // Saved User Mobile from LocalStorage (Auto Login)
+  const [savedMobile, setSavedMobile] = useState(() => localStorage.getItem("egg_user_mobile") || "");
+  const [customPayAmount, setCustomPayAmount] = useState("");
+
+  // Admin Search & Date Filters
+  const [searchName, setSearchName] = useState("");
+  const [searchDate, setSearchDate] = useState("");
 
   // User Form
   const [name, setName] = useState("");
   const [floor, setFloor] = useState("");
-  const [mobile, setMobile] = useState("");
+  const [mobile, setMobile] = useState(savedMobile);
   const [count, setCount] = useState(2);
   const [errors, setErrors] = useState({});
   const [confirmed, setConfirmed] = useState(null);
-  
-  // User Lookup
-  const [userSearchMobile, setUserSearchMobile] = useState("");
-  const [userOrders, setUserOrders] = useState([]);
-
-  // Admin Controls
-  const [clearArmed, setClearArmed] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const clearTimer = useRef(null);
+
+  // Admin Editing Paid Amount
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [manualPaidInput, setManualPaidInput] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("admin") === "true") {
       setIsAdmin(true);
+      setView("admin_kitchen");
     }
 
     const ordersRef = ref(db, "orders");
     const unsubscribe = onValue(ordersRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const orderList = Object.keys(data).map((key) => ({
-          id: key,
-          ...data[key],
-        }));
+        const orderList = Object.keys(data).map((key) => {
+          const item = data[key];
+          const totalCost = item.count * EGG_PRICE;
+          const amountPaid = item.amountPaid !== undefined ? item.amountPaid : (item.paid ? totalCost : 0);
+          return {
+            id: key,
+            ...item,
+            totalCost,
+            amountPaid,
+            remainingBalance: Math.max(0, totalCost - amountPaid)
+          };
+        });
         setOrders(orderList);
       } else {
         setOrders([]);
@@ -119,18 +127,6 @@ export default function EggOrderApp() {
 
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (userSearchMobile.length === 10) {
-      setUserOrders(
-        orders
-          .filter((o) => o.mobile === userSearchMobile)
-          .sort((a, b) => b.ts - a.ts)
-      );
-    } else {
-      setUserOrders([]);
-    }
-  }, [userSearchMobile, orders]);
 
   const validate = () => {
     const e = {};
@@ -146,20 +142,24 @@ export default function EggOrderApp() {
     ev.preventDefault();
     setSubmitError("");
     if (!validate()) {
-      setSubmitError("Please fix the fields marked in red below.");
+      setSubmitError("Please fix the fields marked in red.");
       return;
     }
     setSaving(true);
     try {
+      const cleanMobile = mobile.trim();
+      localStorage.setItem("egg_user_mobile", cleanMobile);
+      setSavedMobile(cleanMobile);
+
       const orderData = {
         name: name.trim(),
         floor: floor.trim(),
-        mobile: mobile.trim(),
+        mobile: cleanMobile,
         count,
         price: count * EGG_PRICE,
         delivered: false,
         paid: false,
-        archived: false,
+        amountPaid: 0,
         ts: Date.now(),
       };
       
@@ -167,10 +167,8 @@ export default function EggOrderApp() {
       const newOrderRef = await push(ordersRef, orderData);
 
       setConfirmed({ id: newOrderRef.key, ...orderData });
-      setUserSearchMobile(mobile.trim());
       setName("");
       setFloor("");
-      setMobile("");
       setCount(2);
       setErrors({});
     } catch (e) {
@@ -180,61 +178,53 @@ export default function EggOrderApp() {
     }
   };
 
-  const toggleField = async (id, field) => {
-    const currentOrder = orders.find((o) => o.id === id);
-    if (!currentOrder) return;
-    
+  const toggleDelivered = async (id, currentVal) => {
     try {
       const orderRef = ref(db, `orders/${id}`);
-      await update(orderRef, {
-        [field]: !currentOrder[field],
-      });
+      await update(orderRef, { delivered: !currentVal });
     } catch (e) {
-      console.error("Failed to update status:", e);
+      console.error("Failed to update delivery status:", e);
     }
   };
 
-  // Safe Archive Action (Preserves History)
-  const requestArchiveDay = async () => {
-    if (clearArmed) {
-      try {
-        const todayOrders = orders.filter((o) => isToday(o.ts) && !o.archived);
-        for (let order of todayOrders) {
-          const orderRef = ref(db, `orders/${order.id}`);
-          await update(orderRef, { archived: true });
-        }
-      } catch (e) {
-        console.error("Failed to archive orders:", e);
-      }
-      setClearArmed(false);
-      if (clearTimer.current) clearTimeout(clearTimer.current);
-      return;
+  const updateOrderPayment = async (id, newPaidAmount, totalCost) => {
+    try {
+      const parsedAmount = Math.min(totalCost, Math.max(0, Number(newPaidAmount) || 0));
+      const isFullyPaid = parsedAmount >= totalCost;
+      
+      const orderRef = ref(db, `orders/${id}`);
+      await update(orderRef, {
+        amountPaid: parsedAmount,
+        paid: isFullyPaid
+      });
+      setEditingOrderId(null);
+    } catch (e) {
+      console.error("Failed to update payment amount:", e);
     }
-    setClearArmed(true);
-    clearTimer.current = setTimeout(() => setClearArmed(false), 3000);
   };
 
-  // Filters for Admin View
-  const filteredAdminOrders = orders.filter((o) => {
-    if (adminFilter === "today") return isToday(o.ts) && !o.archived;
-    return true; // 'all' displays historical log
-  });
+  // User Filtered Orders (Auto-detected via Saved Mobile Number)
+  const myOrders = orders
+    .filter((o) => o.mobile === savedMobile)
+    .sort((a, b) => b.ts - a.ts);
 
-  const byFloor = filteredAdminOrders.reduce((acc, o) => {
-    const k = o.floor || "Unspecified";
-    (acc[k] = acc[k] || []).push(o);
-    return acc;
-  }, {});
-  const floorKeys = Object.keys(byFloor).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const userTotalUnpaid = myOrders.reduce((sum, o) => sum + o.remainingBalance, 0);
+
+  // Admin Filtered Orders (Filtered by Name and Date)
+  const filteredAdminOrders = orders
+    .filter((o) => {
+      const matchesName = o.name.toLowerCase().includes(searchName.toLowerCase()) || 
+                          o.mobile.includes(searchName) || 
+                          o.floor.toLowerCase().includes(searchName.toLowerCase());
+      const matchesDate = searchDate === "" || formatDateShort(o.ts) === searchDate;
+      return matchesName && matchesDate;
+    })
+    .sort((a, b) => b.ts - a.ts);
 
   const totalEggs = filteredAdminOrders.reduce((s, o) => s + o.count, 0);
-  const totalRevenue = filteredAdminOrders.reduce((s, o) => s + (o.count * EGG_PRICE), 0);
-  const totalPaidAmount = filteredAdminOrders.filter((o) => o.paid).reduce((s, o) => s + (o.count * EGG_PRICE), 0);
-  const totalUnpaidAmount = totalRevenue - totalPaidAmount;
-
-  // Personal user totals
-  const userUnpaidTotal = userOrders.filter(o => !o.paid).reduce((s, o) => s + (o.count * EGG_PRICE), 0);
-  const userPaidTotal = userOrders.filter(o => o.paid).reduce((s, o) => s + (o.count * EGG_PRICE), 0);
+  const totalRevenue = filteredAdminOrders.reduce((s, o) => s + o.totalCost, 0);
+  const totalCollected = filteredAdminOrders.reduce((s, o) => s + o.amountPaid, 0);
+  const totalPending = totalRevenue - totalCollected;
 
   const inputStyle = {
     width: "100%",
@@ -249,80 +239,128 @@ export default function EggOrderApp() {
   const labelStyle = { fontSize: 13, fontWeight: 600, color: "#6B5D4D", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 };
   const errorStyle = { fontSize: 12, color: "#B8452E", marginTop: 4 };
 
+  // Calculate UPI custom pay URL
+  const selectedPayAmount = Number(customPayAmount) > 0 ? Number(customPayAmount) : userTotalUnpaid;
+  const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=EggCounter&am=${selectedPayAmount}&cu=INR`;
+
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
 
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "28px 20px 0" }}>
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+      <div style={{ maxWidth: isAdmin ? 760 : 480, margin: "0 auto", padding: "28px 20px 0" }}>
+        {/* Navigation Bar */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: "#F2A93B", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <FaEgg size={20} color="#2E2318" />
             </div>
             <div>
               <div className="headline" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.1 }}>Boiled Egg Counter</div>
-              <div style={{ fontSize: 12, color: "#8A7C69" }}>₹{EGG_PRICE}/egg · Pay after delivery</div>
+              <div style={{ fontSize: 12, color: "#8A7C69" }}>₹{EGG_PRICE}/egg · Fresh & Hot</div>
             </div>
           </div>
 
-          {isAdmin && (
-            <div style={{ display: "flex", background: "#EFE7D6", borderRadius: 10, padding: 3, gap: 2 }}>
-              <button
-                onClick={() => setView("order")}
-                style={{
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "7px 12px",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  background: view === "order" ? "#FFFFFF" : "transparent",
-                  color: view === "order" ? "#2E2318" : "#8A7C69",
-                }}
-              >
-                Order
-              </button>
-              <button
-                onClick={() => setView("kitchen")}
-                style={{
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "7px 12px",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  background: view === "kitchen" ? "#FFFFFF" : "transparent",
-                  color: view === "kitchen" ? "#2E2318" : "#8A7C69",
-                }}
-              >
-                Kitchen
-              </button>
-            </div>
-          )}
+          <div style={{ display: "flex", background: "#EFE7D6", borderRadius: 10, padding: 3, gap: 2 }}>
+            {!isAdmin ? (
+              <>
+                <button
+                  onClick={() => setView("order")}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: view === "order" ? "#FFFFFF" : "transparent",
+                    color: view === "order" ? "#2E2318" : "#8A7C69",
+                  }}
+                >
+                  New Order
+                </button>
+                <button
+                  onClick={() => setView("history")}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: view === "history" ? "#FFFFFF" : "transparent",
+                    color: view === "history" ? "#2E2318" : "#8A7C69",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5
+                  }}
+                >
+                  <FaHistory size={12} /> My History
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setView("admin_kitchen")}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: view === "admin_kitchen" ? "#FFFFFF" : "transparent",
+                    color: view === "admin_kitchen" ? "#2E2318" : "#8A7C69",
+                  }}
+                >
+                  Kitchen View
+                </button>
+                <button
+                  onClick={() => setView("admin_all")}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: view === "admin_all" ? "#FFFFFF" : "transparent",
+                    color: view === "admin_all" ? "#2E2318" : "#8A7C69",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5
+                  }}
+                >
+                  <FaTable size={12} /> Master Data
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "#8A7C69", fontSize: 14 }}>Loading...</div>
-        ) : view === "order" || !isAdmin ? (
+          <div style={{ textAlign: "center", padding: "60px 0", color: "#8A7C69", fontSize: 14 }}>Loading orders...</div>
+        ) : view === "order" ? (
+          /* User Order Form View */
           <div>
-            {/* User Order Form */}
             {confirmed ? (
               <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 28, textAlign: "center", marginBottom: 24 }}>
                 <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#E8EEE4", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
                   <FaCheck size={26} color="#4F6A4B" />
                 </div>
-                <div className="headline" style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Order placed!</div>
+                <div className="headline" style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Order Placed Successfully!</div>
                 <div style={{ fontSize: 14, color: "#6B5D4D", marginBottom: 12, lineHeight: 1.5 }}>
-                  {confirmed.count} egg{confirmed.count > 1 ? "s" : ""} (₹{confirmed.count * EGG_PRICE}) for {confirmed.name} on {confirmed.floor}.
+                  {confirmed.count} egg{confirmed.count > 1 ? "s" : ""} (₹{confirmed.count * EGG_PRICE}) for {confirmed.name} at {confirmed.floor}.
                 </div>
-                <div style={{ fontSize: 12, color: "#8A7C69", marginBottom: 20 }}>
-                  You can track your order history and pay via UPI below.
+                <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 20 }}>
+                  <button
+                    onClick={() => setConfirmed(null)}
+                    style={{ border: "none", background: "#F2A93B", color: "#2E2318", padding: "11px 18px", borderRadius: 10, fontSize: 14, fontWeight: 700 }}
+                  >
+                    Place Another
+                  </button>
+                  <button
+                    onClick={() => setView("history")}
+                    style={{ border: "none", background: "#2E2318", color: "#FAF6EE", padding: "11px 18px", borderRadius: 10, fontSize: 14, fontWeight: 600 }}
+                  >
+                    View History
+                  </button>
                 </div>
-                <button
-                  onClick={() => setConfirmed(null)}
-                  style={{ border: "none", background: "#2E2318", color: "#FAF6EE", padding: "11px 22px", borderRadius: 10, fontSize: 14, fontWeight: 600 }}
-                >
-                  Place another order
-                </button>
               </div>
             ) : (
               <form onSubmit={submitOrder} style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 22, marginBottom: 24 }}>
@@ -339,7 +377,7 @@ export default function EggOrderApp() {
 
                 <div style={{ marginBottom: 16 }}>
                   <div style={labelStyle}><FaMapMarkerAlt size={14} /> Floor / Location</div>
-                  <input style={inputStyle} value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="e.g. 3rd floor, west wing" />
+                  <input style={inputStyle} value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="e.g. 3rd floor, West Desk" />
                   {errors.floor && <div style={errorStyle}>{errors.floor}</div>}
                 </div>
 
@@ -349,14 +387,14 @@ export default function EggOrderApp() {
                     style={inputStyle}
                     value={mobile}
                     onChange={(e) => setMobile(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
-                    placeholder="10-digit number"
+                    placeholder="10-digit mobile number"
                     inputMode="numeric"
                   />
                   {errors.mobile && <div style={errorStyle}>{errors.mobile}</div>}
                 </div>
 
                 <div style={{ marginBottom: 22 }}>
-                  <div style={labelStyle}><FaEgg size={14} /> Number of eggs (₹{EGG_PRICE} each)</div>
+                  <div style={labelStyle}><FaEgg size={14} /> Number of Eggs (₹{EGG_PRICE} each)</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <button
                       type="button"
@@ -385,247 +423,331 @@ export default function EggOrderApp() {
                   disabled={saving}
                   style={{ width: "100%", border: "none", background: "#F2A93B", color: "#2E2318", padding: "13px 0", borderRadius: 10, fontSize: 15, fontWeight: 700 }}
                 >
-                  {saving ? "Placing order..." : "Place order"}
+                  {saving ? "Placing Order..." : "Place Order"}
                 </button>
               </form>
             )}
-
-            {/* Customer History & Status */}
-            <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 20 }}>
-              <div className="headline" style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <FaWallet size={16} /> Order History & Payments
-              </div>
-              <input
-                style={{ ...inputStyle, marginBottom: 14 }}
-                value={userSearchMobile}
-                onChange={(e) => setUserSearchMobile(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
-                placeholder="Enter mobile number to view past orders"
-                inputMode="numeric"
-              />
-
-              {userSearchMobile.length === 10 && (
+          </div>
+        ) : view === "history" ? (
+          /* Automatic User History & Partial Payment Dashboard */
+          <div>
+            <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 20, marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-                    <div style={{ background: "#FAF6EE", padding: 12, borderRadius: 10, textAlign: "center" }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: "#B8452E" }}>₹{userUnpaidTotal}</div>
-                      <div style={{ fontSize: 11, color: "#8A7C69" }}>Unpaid Balance</div>
+                  <div className="headline" style={{ fontSize: 17, fontWeight: 700 }}>My Order Dashboard</div>
+                  <div style={{ fontSize: 12, color: "#8A7C69" }}>
+                    {savedMobile ? `Mobile: ${savedMobile}` : "No saved mobile number"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    const newMob = prompt("Enter mobile number to view history:", savedMobile);
+                    if (newMob && /^\d{10}$/.test(newMob.trim())) {
+                      localStorage.setItem("egg_user_mobile", newMob.trim());
+                      setSavedMobile(newMob.trim());
+                      setMobile(newMob.trim());
+                    }
+                  }}
+                  style={{ border: "1px solid #E3D9C6", background: "#FAF6EE", padding: "6px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}
+                >
+                  Switch Mobile
+                </button>
+              </div>
+
+              {!savedMobile ? (
+                <div style={{ textAlign: "center", padding: "30px 0", color: "#8A7C69", fontSize: 14 }}>
+                  Please place an order or click "Switch Mobile" above to view your order history.
+                </div>
+              ) : (
+                <>
+                  {/* Payment Card */}
+                  <div style={{ background: "#FAF6EE", borderRadius: 14, padding: 18, marginBottom: 20, border: "1px solid #EFE7D6" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 12, color: "#8A7C69", fontWeight: 600 }}>TOTAL UNPAID BALANCE</div>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: userTotalUnpaid > 0 ? "#B8452E" : "#4F6A4B" }}>
+                          ₹{userTotalUnpaid}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 12, color: "#8A7C69" }}>Total Orders</div>
+                        <div style={{ fontSize: 18, fontWeight: 700 }}>{myOrders.length}</div>
+                      </div>
                     </div>
-                    <div style={{ background: "#FAF6EE", padding: 12, borderRadius: 10, textAlign: "center" }}>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: "#4F6A4B" }}>₹{userPaidTotal}</div>
-                      <div style={{ fontSize: 11, color: "#8A7C69" }}>Total Paid</div>
-                    </div>
+
+                    {userTotalUnpaid > 0 && (
+                      <div style={{ borderTop: "1px solid #E3D9C6", paddingTop: 14, marginTop: 10 }}>
+                        <div style={labelStyle}><FaMoneyBillWave size={13} /> Custom Payment Amount</div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+                          <input
+                            type="number"
+                            style={{ ...inputStyle, padding: "8px 12px", width: 140 }}
+                            placeholder={`Max ₹${userTotalUnpaid}`}
+                            value={customPayAmount}
+                            onChange={(e) => setCustomPayAmount(e.target.value)}
+                          />
+                          <button
+                            onClick={() => setCustomPayAmount(userTotalUnpaid.toString())}
+                            style={{ border: "1px solid #E3D9C6", background: "#FFFFFF", padding: "8px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}
+                          >
+                            Pay Full
+                          </button>
+                        </div>
+
+                        <a
+                          href={upiUrl}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                            background: "#2E2318",
+                            color: "#FAF6EE",
+                            padding: "11px 0",
+                            borderRadius: 10,
+                            fontSize: 14,
+                            fontWeight: 700,
+                            textDecoration: "none",
+                            width: "100%"
+                          }}
+                        >
+                          <FaQrcode size={16} /> Pay ₹{selectedPayAmount} via UPI
+                        </a>
+                      </div>
+                    )}
                   </div>
 
-                  {userOrders.length === 0 ? (
-                    <div style={{ fontSize: 13, color: "#8A7C69", textAlign: "center", padding: "10px 0" }}>
-                      No order history found for this mobile number.
+                  {/* Orders List */}
+                  <div className="headline" style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Previous Orders</div>
+                  {myOrders.length === 0 ? (
+                    <div style={{ fontSize: 13, color: "#8A7C69", textAlign: "center", padding: "20px 0" }}>
+                      No order records found for this phone number.
                     </div>
                   ) : (
-                    userOrders.map((o) => {
-                      const amount = o.count * EGG_PRICE;
-                      const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=EggCounter&am=${amount}&cu=INR`;
-
-                      return (
-                        <div key={o.id} style={{ borderTop: "1px solid #F0EAD9", padding: "12px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    myOrders.map((o) => (
+                      <div key={o.id} style={{ border: "1px solid #F0EAD9", borderRadius: 10, padding: 12, marginBottom: 10, background: "#FFFFFF" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                           <div>
-                            <div style={{ fontSize: 14, fontWeight: 600 }}>{o.count} Egg{o.count > 1 ? "s" : ""} (₹{amount})</div>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{o.count} Egg{o.count > 1 ? "s" : ""} · ₹{o.totalCost}</div>
                             <div style={{ fontSize: 11, color: "#8A7C69", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
                               <FaCalendarAlt size={10} /> {formatDate(o.ts)}
                             </div>
-                            <div style={{ fontSize: 12, color: "#8A7C69", marginTop: 2 }}>
-                              Status: {o.delivered ? "Delivered" : "Preparing"}
-                            </div>
                           </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, background: o.delivered ? "#E8EEE4" : "#FBEBD2", color: o.delivered ? "#4F6A4B" : "#8A5B0B" }}>
+                            {o.delivered ? "Delivered" : "Preparing"}
+                          </span>
+                        </div>
 
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #FAF6EE", paddingTop: 8, fontSize: 12 }}>
+                          <div>
+                            Paid: <strong style={{ color: "#4F6A4B" }}>₹{o.amountPaid}</strong>
+                            {o.remainingBalance > 0 && <span style={{ color: "#B8452E", marginLeft: 8 }}>(Pending: ₹{o.remainingBalance})</span>}
+                          </div>
                           {o.paid ? (
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "#4F6A4B", background: "#E8EEE4", padding: "5px 10px", borderRadius: 8 }}>
-                              Paid
+                            <span style={{ color: "#4F6A4B", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                              <FaCheck size={10} /> Fully Paid
                             </span>
-                          ) : o.delivered ? (
-                            <a
-                              href={upiUrl}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 6,
-                                background: "#2E2318",
-                                color: "#FAF6EE",
-                                padding: "7px 12px",
-                                borderRadius: 8,
-                                fontSize: 12,
-                                fontWeight: 600,
-                                textDecoration: "none"
-                              }}
-                            >
-                              <FaQrcode size={12} /> Pay ₹{amount}
-                            </a>
                           ) : (
-                            <span style={{ fontSize: 12, color: "#8A7C69", background: "#FAF6EE", padding: "5px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 4 }}>
-                              <FaLock size={10} /> Pay on delivery
-                            </span>
+                            <span style={{ color: "#D98D1B", fontWeight: 600 }}>Partially Paid</span>
                           )}
                         </div>
-                      );
-                    })
+                      </div>
+                    ))
                   )}
-                </div>
+                </>
               )}
             </div>
           </div>
-        ) : (
-          /* Kitchen / Admin View */
+        ) : view === "admin_kitchen" ? (
+          /* Admin Kitchen View (Grouping by floor) */
           <div>
-            {/* Filter Toggle */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ display: "flex", gap: 6, background: "#EFE7D6", padding: 3, borderRadius: 10 }}>
-                <button
-                  onClick={() => setAdminFilter("today")}
-                  style={{
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "6px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background: adminFilter === "today" ? "#FFFFFF" : "transparent",
-                    color: adminFilter === "today" ? "#2E2318" : "#8A7C69",
-                  }}
-                >
-                  Today's Active
-                </button>
-                <button
-                  onClick={() => setAdminFilter("all")}
-                  style={{
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "6px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background: adminFilter === "all" ? "#FFFFFF" : "transparent",
-                    color: adminFilter === "all" ? "#2E2318" : "#8A7C69",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4
-                  }}
-                >
-                  <FaHistory size={11} /> All History
-                </button>
-              </div>
-
-              <button
-                onClick={requestArchiveDay}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  border: "1.5px solid " + (clearArmed ? "#B8452E" : "#E3D9C6"),
-                  background: clearArmed ? "#F5E3DD" : "#FFFFFF",
-                  borderRadius: 9,
-                  padding: "6px 10px",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: clearArmed ? "#B8452E" : "#6B5D4D",
-                }}
-              >
-                <FaArchive size={11} /> {clearArmed ? "Confirm Archive" : "Archive Today"}
-              </button>
-            </div>
-
-            {/* Dashboard Overview */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
               <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
                 <div style={{ fontSize: 18, fontWeight: 700 }}>{totalEggs}</div>
                 <div style={{ fontSize: 11, color: "#8A7C69" }}>Total Eggs</div>
               </div>
               <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#4F6A4B" }}>₹{totalPaidAmount}</div>
-                <div style={{ fontSize: 11, color: "#8A7C69" }}>Total Paid</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#4F6A4B" }}>₹{totalCollected}</div>
+                <div style={{ fontSize: 11, color: "#8A7C69" }}>Collected</div>
               </div>
               <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: totalUnpaidAmount ? "#B8452E" : "#2E2318" }}>₹{totalUnpaidAmount}</div>
-                <div style={{ fontSize: 11, color: "#8A7C69" }}>Unpaid Balance</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: totalPending > 0 ? "#B8452E" : "#2E2318" }}>₹{totalPending}</div>
+                <div style={{ fontSize: 11, color: "#8A7C69" }}>Pending</div>
               </div>
             </div>
 
-            {filteredAdminOrders.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "50px 0", color: "#8A7C69" }}>
-                <FaClipboardList size={30} style={{ marginBottom: 10, opacity: 0.5 }} />
-                <div style={{ fontSize: 14 }}>No orders found in this view.</div>
-              </div>
+            {orders.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "50px 0", color: "#8A7C69" }}>No orders available.</div>
             ) : (
-              floorKeys.map((fk) => {
-                const list = byFloor[fk].slice().sort((a, b) => b.ts - a.ts);
-                const floorTotal = list.reduce((s, o) => s + o.count, 0);
-                return (
-                  <div key={fk} style={{ marginBottom: 18 }}>
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8, padding: "0 2px" }}>
-                      <div className="headline" style={{ fontSize: 15, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
-                        <FaMapMarkerAlt size={13} /> {fk}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#8A7C69" }}>{floorTotal} egg{floorTotal > 1 ? "s" : ""} (₹{floorTotal * EGG_PRICE})</div>
+              orders.map((o) => (
+                <div key={o.id} style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700 }}>{o.name} <span style={{ fontSize: 13, color: "#8A7C69", fontWeight: 500 }}>({o.floor})</span></div>
+                      <div style={{ fontSize: 12, color: "#8A7C69" }}>{o.count} Eggs · Total: ₹{o.totalCost} · {o.mobile}</div>
+                      <div style={{ fontSize: 11, color: "#B3A692", marginTop: 2 }}>{formatDate(o.ts)}</div>
                     </div>
-                    <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, overflow: "hidden" }}>
-                      {list.map((o, idx) => (
-                        <div
-                          key={o.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            padding: "12px 14px",
-                            borderTop: idx === 0 ? "none" : "1px solid #F0EAD9",
-                          }}
-                        >
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {o.name} <span style={{ color: "#8A7C69", fontWeight: 500 }}>· {o.count} egg{o.count > 1 ? "s" : ""} (₹{o.count * EGG_PRICE})</span>
-                            </div>
-                            <div style={{ fontSize: 11, color: "#8A7C69", marginTop: 2 }}>
-                              {o.mobile} · {formatDate(o.ts)}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => toggleField(o.id, "delivered")}
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              padding: "6px 10px",
-                              borderRadius: 8,
-                              border: "1.5px solid " + (o.delivered ? "#6F8F6B" : "#E3D9C6"),
-                              background: o.delivered ? "#E8EEE4" : "#FAF6EE",
-                              color: o.delivered ? "#4F6A4B" : "#8A7C69",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {o.delivered ? "Delivered" : "Mark delivered"}
-                          </button>
-                          <button
-                            onClick={() => toggleField(o.id, "paid")}
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              padding: "6px 10px",
-                              borderRadius: 8,
-                              border: "1.5px solid " + (o.paid ? "#D98D1B" : "#E3D9C6"),
-                              background: o.paid ? "#FBEBD2" : "#FAF6EE",
-                              color: o.paid ? "#8A5B0B" : "#8A7C69",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {o.paid ? "Paid" : "Mark paid"}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                    <button
+                      onClick={() => toggleDelivered(o.id, o.delivered)}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: 8,
+                        border: "none",
+                        fontWeight: 700,
+                        fontSize: 12,
+                        background: o.delivered ? "#E8EEE4" : "#F2A93B",
+                        color: o.delivered ? "#4F6A4B" : "#2E2318"
+                      }}
+                    >
+                      {o.delivered ? "Delivered" : "Mark Delivered"}
+                    </button>
                   </div>
-                );
-              })
+                </div>
+              ))
             )}
+          </div>
+        ) : (
+          /* Admin Master Data Dashboard (Full Database Access with Date & Name Filters) */
+          <div>
+            {/* Filter Bar */}
+            <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+              <div className="headline" style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <FaSearch size={14} /> Master Database Filters
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <div style={labelStyle}>Search Name / Phone / Floor</div>
+                  <input
+                    style={inputStyle}
+                    value={searchName}
+                    onChange={(e) => setSearchName(e.target.value)}
+                    placeholder="Type name or phone..."
+                  />
+                </div>
+                <div>
+                  <div style={labelStyle}><FaCalendarAlt size={12} /> Filter by Date</div>
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={searchDate}
+                    onChange={(e) => setSearchDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              {(searchName || searchDate) && (
+                <button
+                  onClick={() => { setSearchName(""); setSearchDate(""); }}
+                  style={{ border: "none", background: "none", color: "#B8452E", fontSize: 12, fontWeight: 600, marginTop: 10, padding: 0 }}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            {/* Metrics */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{filteredAdminOrders.length}</div>
+                <div style={{ fontSize: 10, color: "#8A7C69" }}>Orders</div>
+              </div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{totalEggs}</div>
+                <div style={{ fontSize: 10, color: "#8A7C69" }}>Eggs</div>
+              </div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#4F6A4B" }}>₹{totalCollected}</div>
+                <div style={{ fontSize: 10, color: "#8A7C69" }}>Collected</div>
+              </div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#B8452E" }}>₹{totalPending}</div>
+                <div style={{ fontSize: 10, color: "#8A7C69" }}>Pending</div>
+              </div>
+            </div>
+
+            {/* Master Data Table */}
+            <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 14, overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                <thead>
+                  <tr style={{ background: "#FAF6EE", borderBottom: "1.5px solid #E3D9C6", color: "#6B5D4D" }}>
+                    <th style={{ padding: "10px 12px" }}>Date</th>
+                    <th style={{ padding: "10px 12px" }}>Customer</th>
+                    <th style={{ padding: "10px 12px" }}>Qty</th>
+                    <th style={{ padding: "10px 12px" }}>Total</th>
+                    <th style={{ padding: "10px 12px" }}>Paid</th>
+                    <th style={{ padding: "10px 12px" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAdminOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#8A7C69" }}>No orders found matching filters.</td>
+                    </tr>
+                  ) : (
+                    filteredAdminOrders.map((o) => (
+                      <tr key={o.id} style={{ borderBottom: "1px solid #F0EAD9" }}>
+                        <td style={{ padding: "10px 12px", whiteSpace: "nowrap", fontSize: 11, color: "#8A7C69" }}>{formatDate(o.ts)}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ fontWeight: 600 }}>{o.name}</div>
+                          <div style={{ fontSize: 11, color: "#8A7C69" }}>{o.floor} · {o.mobile}</div>
+                        </td>
+                        <td style={{ padding: "10px 12px", fontWeight: 600 }}>{o.count}</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 600 }}>₹{o.totalCost}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          {editingOrderId === o.id ? (
+                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                              <input
+                                type="number"
+                                style={{ width: 60, padding: 4, fontSize: 12, borderRadius: 6, border: "1px solid #E3D9C6" }}
+                                value={manualPaidInput}
+                                onChange={(e) => setManualPaidInput(e.target.value)}
+                              />
+                              <button
+                                onClick={() => updateOrderPayment(o.id, manualPaidInput, o.totalCost)}
+                                style={{ border: "none", background: "#4F6A4B", color: "#FFF", padding: "4px 8px", borderRadius: 6, fontSize: 11 }}
+                              >
+                                Save
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontWeight: 600, color: o.paid ? "#4F6A4B" : "#B8452E" }}>₹{o.amountPaid}</span>
+                              <button
+                                onClick={() => { setEditingOrderId(o.id); setManualPaidInput(o.amountPaid.toString()); }}
+                                style={{ border: "none", background: "none", color: "#8A7C69", padding: 0 }}
+                              >
+                                <FaEdit size={11} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <button
+                            onClick={() => updateOrderPayment(o.id, o.paid ? 0 : o.totalCost, o.totalCost)}
+                            style={{
+                              border: "none",
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background: o.paid ? "#E8EEE4" : "#F5E3DD",
+                              color: o.paid ? "#4F6A4B" : "#B8452E"
+                            }}
+                          >
+                            {o.paid ? "Fully Paid" : "Mark Full"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
         <div style={{ textAlign: "center", marginTop: 26, fontSize: 11, color: "#B3A692" }}>
           <FaUtensils size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />
-          Orders sync automatically in real-time
+          Egg Counter Realtime Dashboard
         </div>
       </div>
     </div>
