@@ -19,7 +19,7 @@ import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, push, update, remove } from "firebase/database";
 
 // Configuration
-const EGG_PRICE = 10; // Price per egg in INR
+const EGG_PRICE = 11; // Price per egg in INR
 const ADMIN_UPI_ID = "reshmamanikandan17@oksbi"; // Replace with your actual UPI ID
 
 const firebaseConfig = {
