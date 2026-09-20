@@ -9,18 +9,19 @@ import {
   FaUser, 
   FaUtensils, 
   FaClipboardList, 
-  FaTrash,
+  FaArchive,
   FaQrcode,
   FaWallet,
-  FaLock
+  FaLock,
+  FaHistory,
+  FaCalendarAlt
 } from "react-icons/fa";
 
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, push, update, remove } from "firebase/database";
+import { getDatabase, ref, onValue, push, update } from "firebase/database";
 
-// Configuration
-const EGG_PRICE = 11; // Price per egg in INR
-const ADMIN_UPI_ID = "reshmamanikandan17@oksbi"; // Replace with your actual UPI ID
+const EGG_PRICE = 10;
+const ADMIN_UPI_ID = "9876543210@upi"; // Replace with your actual UPI ID
 
 const firebaseConfig = {
   apiKey: "AIzaSyAk5fc_KBjXNXNQVjpCJmPmhyWkmjn2q1s",
@@ -44,16 +45,36 @@ const FONT_STYLE = `
 .egg-app ::placeholder { color:#B3A692; }
 `;
 
-function classForFloorKey(k) {
-  return k || "Unspecified";
+function formatDate(timestamp) {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  return d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function isToday(timestamp) {
+  if (!timestamp) return false;
+  const d = new Date(timestamp);
+  const today = new Date();
+  return d.getDate() === today.getDate() &&
+    d.getMonth() === today.getMonth() &&
+    d.getFullYear() === today.getFullYear();
 }
 
 export default function EggOrderApp() {
   const [isAdmin, setIsAdmin] = useState(false);
-  const [view, setView] = useState("order"); // 'order' or 'kitchen'
+  const [view, setView] = useState("order");
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Filters
+  const [adminFilter, setAdminFilter] = useState("today"); // 'today' or 'all'
 
   // User Form
   const [name, setName] = useState("");
@@ -73,7 +94,6 @@ export default function EggOrderApp() {
   const clearTimer = useRef(null);
 
   useEffect(() => {
-    // Check URL parameters for Admin Access (e.g. site.com/?admin=true)
     const params = new URLSearchParams(window.location.search);
     if (params.get("admin") === "true") {
       setIsAdmin(true);
@@ -100,10 +120,13 @@ export default function EggOrderApp() {
     return () => unsubscribe();
   }, []);
 
-  // Update personal user orders when mobile search or global orders change
   useEffect(() => {
     if (userSearchMobile.length === 10) {
-      setUserOrders(orders.filter((o) => o.mobile === userSearchMobile));
+      setUserOrders(
+        orders
+          .filter((o) => o.mobile === userSearchMobile)
+          .sort((a, b) => b.ts - a.ts)
+      );
     } else {
       setUserOrders([]);
     }
@@ -136,6 +159,7 @@ export default function EggOrderApp() {
         price: count * EGG_PRICE,
         delivered: false,
         paid: false,
+        archived: false,
         ts: Date.now(),
       };
       
@@ -170,13 +194,17 @@ export default function EggOrderApp() {
     }
   };
 
-  const requestClear = async () => {
+  // Safe Archive Action (Preserves History)
+  const requestArchiveDay = async () => {
     if (clearArmed) {
       try {
-        const ordersRef = ref(db, "orders");
-        await remove(ordersRef);
+        const todayOrders = orders.filter((o) => isToday(o.ts) && !o.archived);
+        for (let order of todayOrders) {
+          const orderRef = ref(db, `orders/${order.id}`);
+          await update(orderRef, { archived: true });
+        }
       } catch (e) {
-        console.error("Failed to clear database:", e);
+        console.error("Failed to archive orders:", e);
       }
       setClearArmed(false);
       if (clearTimer.current) clearTimeout(clearTimer.current);
@@ -186,17 +214,22 @@ export default function EggOrderApp() {
     clearTimer.current = setTimeout(() => setClearArmed(false), 3000);
   };
 
-  // Aggregation Logic
-  const byFloor = orders.reduce((acc, o) => {
-    const k = classForFloorKey(o.floor);
+  // Filters for Admin View
+  const filteredAdminOrders = orders.filter((o) => {
+    if (adminFilter === "today") return isToday(o.ts) && !o.archived;
+    return true; // 'all' displays historical log
+  });
+
+  const byFloor = filteredAdminOrders.reduce((acc, o) => {
+    const k = o.floor || "Unspecified";
     (acc[k] = acc[k] || []).push(o);
     return acc;
   }, {});
   const floorKeys = Object.keys(byFloor).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  const totalEggs = orders.reduce((s, o) => s + o.count, 0);
-  const totalRevenue = orders.reduce((s, o) => s + (o.count * EGG_PRICE), 0);
-  const totalPaidAmount = orders.filter((o) => o.paid).reduce((s, o) => s + (o.count * EGG_PRICE), 0);
+  const totalEggs = filteredAdminOrders.reduce((s, o) => s + o.count, 0);
+  const totalRevenue = filteredAdminOrders.reduce((s, o) => s + (o.count * EGG_PRICE), 0);
+  const totalPaidAmount = filteredAdminOrders.filter((o) => o.paid).reduce((s, o) => s + (o.count * EGG_PRICE), 0);
   const totalUnpaidAmount = totalRevenue - totalPaidAmount;
 
   // Personal user totals
@@ -233,7 +266,6 @@ export default function EggOrderApp() {
             </div>
           </div>
 
-          {/* Render navigation tabs ONLY if user is Admin */}
           {isAdmin && (
             <div style={{ display: "flex", background: "#EFE7D6", borderRadius: 10, padding: 3, gap: 2 }}>
               <button
@@ -272,7 +304,7 @@ export default function EggOrderApp() {
           <div style={{ textAlign: "center", padding: "60px 0", color: "#8A7C69", fontSize: 14 }}>Loading...</div>
         ) : view === "order" || !isAdmin ? (
           <div>
-            {/* User Order Form / Confirmation */}
+            {/* User Order Form */}
             {confirmed ? (
               <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 28, textAlign: "center", marginBottom: 24 }}>
                 <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#E8EEE4", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
@@ -283,7 +315,7 @@ export default function EggOrderApp() {
                   {confirmed.count} egg{confirmed.count > 1 ? "s" : ""} (₹{confirmed.count * EGG_PRICE}) for {confirmed.name} on {confirmed.floor}.
                 </div>
                 <div style={{ fontSize: 12, color: "#8A7C69", marginBottom: 20 }}>
-                  You can pay via UPI on this page once delivered.
+                  You can track your order history and pay via UPI below.
                 </div>
                 <button
                   onClick={() => setConfirmed(null)}
@@ -358,16 +390,16 @@ export default function EggOrderApp() {
               </form>
             )}
 
-            {/* User Dashboard & Status Lookup */}
+            {/* Customer History & Status */}
             <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 20 }}>
               <div className="headline" style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <FaWallet size={16} /> My Orders & Payment Status
+                <FaWallet size={16} /> Order History & Payments
               </div>
               <input
                 style={{ ...inputStyle, marginBottom: 14 }}
                 value={userSearchMobile}
                 onChange={(e) => setUserSearchMobile(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
-                placeholder="Enter mobile number to view status"
+                placeholder="Enter mobile number to view past orders"
                 inputMode="numeric"
               />
 
@@ -380,13 +412,13 @@ export default function EggOrderApp() {
                     </div>
                     <div style={{ background: "#FAF6EE", padding: 12, borderRadius: 10, textAlign: "center" }}>
                       <div style={{ fontSize: 18, fontWeight: 700, color: "#4F6A4B" }}>₹{userPaidTotal}</div>
-                      <div style={{ fontSize: 11, color: "#8A7C69" }}>Paid Amount</div>
+                      <div style={{ fontSize: 11, color: "#8A7C69" }}>Total Paid</div>
                     </div>
                   </div>
 
                   {userOrders.length === 0 ? (
                     <div style={{ fontSize: 13, color: "#8A7C69", textAlign: "center", padding: "10px 0" }}>
-                      No orders found for this mobile number.
+                      No order history found for this mobile number.
                     </div>
                   ) : (
                     userOrders.map((o) => {
@@ -397,7 +429,10 @@ export default function EggOrderApp() {
                         <div key={o.id} style={{ borderTop: "1px solid #F0EAD9", padding: "12px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                           <div>
                             <div style={{ fontSize: 14, fontWeight: 600 }}>{o.count} Egg{o.count > 1 ? "s" : ""} (₹{amount})</div>
-                            <div style={{ fontSize: 12, color: "#8A7C69" }}>
+                            <div style={{ fontSize: 11, color: "#8A7C69", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <FaCalendarAlt size={10} /> {formatDate(o.ts)}
+                            </div>
+                            <div style={{ fontSize: 12, color: "#8A7C69", marginTop: 2 }}>
                               Status: {o.delivered ? "Delivered" : "Preparing"}
                             </div>
                           </div>
@@ -440,7 +475,62 @@ export default function EggOrderApp() {
         ) : (
           /* Kitchen / Admin View */
           <div>
-            {/* Admin Overview Dashboard */}
+            {/* Filter Toggle */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ display: "flex", gap: 6, background: "#EFE7D6", padding: 3, borderRadius: 10 }}>
+                <button
+                  onClick={() => setAdminFilter("today")}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: adminFilter === "today" ? "#FFFFFF" : "transparent",
+                    color: adminFilter === "today" ? "#2E2318" : "#8A7C69",
+                  }}
+                >
+                  Today's Active
+                </button>
+                <button
+                  onClick={() => setAdminFilter("all")}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: adminFilter === "all" ? "#FFFFFF" : "transparent",
+                    color: adminFilter === "all" ? "#2E2318" : "#8A7C69",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4
+                  }}
+                >
+                  <FaHistory size={11} /> All History
+                </button>
+              </div>
+
+              <button
+                onClick={requestArchiveDay}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  border: "1.5px solid " + (clearArmed ? "#B8452E" : "#E3D9C6"),
+                  background: clearArmed ? "#F5E3DD" : "#FFFFFF",
+                  borderRadius: 9,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: clearArmed ? "#B8452E" : "#6B5D4D",
+                }}
+              >
+                <FaArchive size={11} /> {clearArmed ? "Confirm Archive" : "Archive Today"}
+              </button>
+            </div>
+
+            {/* Dashboard Overview */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
               <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
                 <div style={{ fontSize: 18, fontWeight: 700 }}>{totalEggs}</div>
@@ -456,36 +546,14 @@ export default function EggOrderApp() {
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 14 }}>
-              {orders.length > 0 && (
-                <button
-                  onClick={requestClear}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    border: "1.5px solid " + (clearArmed ? "#B8452E" : "#E3D9C6"),
-                    background: clearArmed ? "#F5E3DD" : "#FFFFFF",
-                    borderRadius: 9,
-                    padding: "7px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: clearArmed ? "#B8452E" : "#6B5D4D",
-                  }}
-                >
-                  <FaTrash size={12} /> {clearArmed ? "Tap again to confirm" : "Start new day"}
-                </button>
-              )}
-            </div>
-
-            {orders.length === 0 ? (
+            {filteredAdminOrders.length === 0 ? (
               <div style={{ textAlign: "center", padding: "50px 0", color: "#8A7C69" }}>
                 <FaClipboardList size={30} style={{ marginBottom: 10, opacity: 0.5 }} />
-                <div style={{ fontSize: 14 }}>No orders yet.</div>
+                <div style={{ fontSize: 14 }}>No orders found in this view.</div>
               </div>
             ) : (
               floorKeys.map((fk) => {
-                const list = byFloor[fk].slice().sort((a, b) => a.ts - b.ts);
+                const list = byFloor[fk].slice().sort((a, b) => b.ts - a.ts);
                 const floorTotal = list.reduce((s, o) => s + o.count, 0);
                 return (
                   <div key={fk} style={{ marginBottom: 18 }}>
@@ -511,7 +579,9 @@ export default function EggOrderApp() {
                             <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                               {o.name} <span style={{ color: "#8A7C69", fontWeight: 500 }}>· {o.count} egg{o.count > 1 ? "s" : ""} (₹{o.count * EGG_PRICE})</span>
                             </div>
-                            <div style={{ fontSize: 12, color: "#8A7C69" }}>{o.mobile}</div>
+                            <div style={{ fontSize: 11, color: "#8A7C69", marginTop: 2 }}>
+                              {o.mobile} · {formatDate(o.ts)}
+                            </div>
                           </div>
                           <button
                             onClick={() => toggleField(o.id, "delivered")}
