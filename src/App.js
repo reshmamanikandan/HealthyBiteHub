@@ -324,7 +324,7 @@ export default function EggOrderApp() {
               flexShrink: 0
             }}>
               <img 
-                src="1000386596.png" 
+                src={process.env.PUBLIC_URL + "/1000386596.png"}
                 alt="Healthy Bite Hub" 
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 onError={(e) => {
