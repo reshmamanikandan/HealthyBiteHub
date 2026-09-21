@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   FaEgg, 
   FaPlus, 
@@ -9,13 +9,16 @@ import {
   FaUser, 
   FaUtensils, 
   FaQrcode,
-  FaWallet,
   FaHistory,
   FaCalendarAlt,
   FaSearch,
   FaTable,
   FaMoneyBillWave,
-  FaEdit
+  FaEdit,
+  FaQuoteLeft,
+  FaLeaf,
+  FaDumbbell,
+  FaHeart
 } from "react-icons/fa";
 
 import { initializeApp } from "firebase/app";
@@ -37,13 +40,38 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+const HEALTH_QUOTES = [
+  "Eat Clean. Feel Great.",
+  "Crack open a healthier you with nature's ultimate protein powerhouse!",
+  "Fuel your body with wholesome nutrition, one bite at a time.",
+  "Good health starts with good food choices — power up your day with fresh eggs!",
+  "High in protein, rich in life — pure health delivered fresh to your spot."
+];
+
 const FONT_STYLE = `
-@import url('https://fonts.googleapis.com/css2?family=Bitter:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap');
-.egg-app { font-family: 'Work Sans', sans-serif; background:#FAF6EE; color:#2E2318; min-height:100vh; }
-.egg-app h1, .egg-app h2, .egg-app .headline { font-family:'Bitter', serif; }
-.egg-app input:focus, .egg-app select:focus { outline:none; border-color:#D98D1B !important; box-shadow:0 0 0 3px rgba(242,169,59,0.25); }
-.egg-app button { font-family:'Work Sans', sans-serif; cursor:pointer; }
-.egg-app ::placeholder { color:#B3A692; }
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+.egg-app { 
+  font-family: 'Plus Jakarta Sans', sans-serif; 
+  background: #F4F7F4; 
+  color: #1C2D1F; 
+  min-height: 100vh; 
+}
+.egg-app h1, .egg-app h2, .egg-app .headline, .egg-app .brand-title { 
+  font-family: 'Fredoka', cursive, sans-serif; 
+}
+.egg-app input:focus, .egg-app select:focus { 
+  outline: none; 
+  border-color: #1E5128 !important; 
+  box-shadow: 0 0 0 3px rgba(30, 81, 40, 0.18); 
+}
+.egg-app button { 
+  font-family: 'Plus Jakarta Sans', sans-serif; 
+  cursor: pointer; 
+}
+.egg-app ::placeholder { 
+  color: #93A395; 
+}
 `;
 
 function formatDate(timestamp) {
@@ -61,7 +89,7 @@ function formatDate(timestamp) {
 function formatDateShort(timestamp) {
   if (!timestamp) return "";
   const d = new Date(timestamp);
-  return d.toISOString().split('T')[0]; // YYYY-MM-DD format
+  return d.toISOString().split('T')[0];
 }
 
 export default function EggOrderApp() {
@@ -75,13 +103,16 @@ export default function EggOrderApp() {
   const [savedMobile, setSavedMobile] = useState(() => localStorage.getItem("egg_user_mobile") || "");
   const [customPayAmount, setCustomPayAmount] = useState("");
 
+  // Rotating Quotes Index
+  const [quoteIdx, setQuoteIdx] = useState(0);
+
   // Admin Search & Date Filters
   const [searchName, setSearchName] = useState("");
   const [searchDate, setSearchDate] = useState("");
 
   // User Form
   const [name, setName] = useState("");
-  const [floor, setFloor] = useState("");
+  const [floor, setFloor] = useState("Plot 16A");
   const [mobile, setMobile] = useState(savedMobile);
   const [count, setCount] = useState(2);
   const [errors, setErrors] = useState({});
@@ -125,13 +156,21 @@ export default function EggOrderApp() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Rotate Quote every 8 seconds
+    const quoteInterval = setInterval(() => {
+      setQuoteIdx((prevIdx) => (prevIdx + 1) % HEALTH_QUOTES.length);
+    }, 8000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(quoteInterval);
+    };
   }, []);
 
   const validate = () => {
     const e = {};
     if (!name.trim()) e.name = "Enter your name";
-    if (!floor.trim()) e.floor = "Enter your floor";
+    if (!floor.trim()) e.floor = "Please select a location";
     if (!/^\d{10}$/.test(mobile.trim())) e.mobile = "Enter a valid 10-digit number";
     if (!count || count < 1) e.count = "Pick at least 1 egg";
     setErrors(e);
@@ -142,7 +181,7 @@ export default function EggOrderApp() {
     ev.preventDefault();
     setSubmitError("");
     if (!validate()) {
-      setSubmitError("Please fix the fields marked in red.");
+      setSubmitError("Please fix the fields highlighted in red.");
       return;
     }
     setSaving(true);
@@ -153,7 +192,7 @@ export default function EggOrderApp() {
 
       const orderData = {
         name: name.trim(),
-        floor: floor.trim(),
+        floor,
         mobile: cleanMobile,
         count,
         price: count * EGG_PRICE,
@@ -168,7 +207,7 @@ export default function EggOrderApp() {
 
       setConfirmed({ id: newOrderRef.key, ...orderData });
       setName("");
-      setFloor("");
+      setFloor("Plot 16A");
       setCount(2);
       setErrors({});
     } catch (e) {
@@ -203,19 +242,19 @@ export default function EggOrderApp() {
     }
   };
 
-  // User Filtered Orders (Auto-detected via Saved Mobile Number)
+  // User Filtered Orders
   const myOrders = orders
     .filter((o) => o.mobile === savedMobile)
     .sort((a, b) => b.ts - a.ts);
 
   const userTotalUnpaid = myOrders.reduce((sum, o) => sum + o.remainingBalance, 0);
 
-  // Admin Filtered Orders (Filtered by Name and Date)
+  // Admin Filtered Orders
   const filteredAdminOrders = orders
     .filter((o) => {
       const matchesName = o.name.toLowerCase().includes(searchName.toLowerCase()) || 
                           o.mobile.includes(searchName) || 
-                          o.floor.toLowerCase().includes(searchName.toLowerCase());
+                          (o.floor && o.floor.toLowerCase().includes(searchName.toLowerCase()));
       const matchesDate = searchDate === "" || formatDateShort(o.ts) === searchDate;
       return matchesName && matchesDate;
     })
@@ -229,160 +268,267 @@ export default function EggOrderApp() {
   const inputStyle = {
     width: "100%",
     padding: "12px 14px",
-    borderRadius: 10,
-    border: "1.5px solid #E3D9C6",
+    borderRadius: 12,
+    border: "1.5px solid #D2E0D4",
     background: "#FFFFFF",
     fontSize: 15,
-    color: "#2E2318",
+    color: "#1C2D1F",
     boxSizing: "border-box",
   };
-  const labelStyle = { fontSize: 13, fontWeight: 600, color: "#6B5D4D", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 };
-  const errorStyle = { fontSize: 12, color: "#B8452E", marginTop: 4 };
 
-  // Calculate UPI custom pay URL
+  const labelStyle = { 
+    fontSize: 13, 
+    fontWeight: 600, 
+    color: "#2C402E", 
+    marginBottom: 6, 
+    display: "flex", 
+    alignItems: "center", 
+    gap: 6 
+  };
+  
+  const errorStyle = { fontSize: 12, color: "#D32F2F", marginTop: 4 };
+
   const selectedPayAmount = Number(customPayAmount) > 0 ? Number(customPayAmount) : userTotalUnpaid;
-  const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=EggCounter&am=${selectedPayAmount}&cu=INR`;
+  const upiUrl = `upi://pay?pa=${ADMIN_UPI_ID}&pn=HealthyBiteHub&am=${selectedPayAmount}&cu=INR`;
 
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
 
-      <div style={{ maxWidth: isAdmin ? 760 : 480, margin: "0 auto", padding: "28px 20px 0" }}>
-        {/* Navigation Bar */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: "#F2A93B", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <FaEgg size={20} color="#2E2318" />
+      <div style={{ maxWidth: isAdmin ? 780 : 480, margin: "0 auto", padding: "20px 16px 0" }}>
+        
+        {/* BRAND HEADER & LOGO CONTAINER */}
+        <div style={{
+          background: "linear-gradient(135deg, #1E5128 0%, #143A1B 100%)",
+          borderRadius: 20,
+          padding: "20px 18px",
+          color: "#FFFFFF",
+          boxShadow: "0 8px 24px rgba(30,81,40,0.18)",
+          marginBottom: 16,
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {/* Logo Image Placeholder / Display */}
+            <div style={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              background: "#FFFFFF",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "3px solid #FF6B00",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              overflow: "hidden",
+              flexShrink: 0
+            }}>
+              <img 
+                src="1000386596.png" 
+                alt="Healthy Bite Hub" 
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                onError={(e) => {
+                  // Fallback icon if image path isn't local
+                  e.target.style.display = 'none';
+                  e.target.parentNode.innerHTML = '<span style="font-size: 32px">🥚</span>';
+                }}
+              />
             </div>
+
             <div>
-              <div className="headline" style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.1 }}>Boiled Egg Counter</div>
-              <div style={{ fontSize: 12, color: "#8A7C69" }}>₹{EGG_PRICE}/egg · Fresh & Hot</div>
+              <div className="brand-title" style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.5px", color: "#FFFFFF", lineHeight: 1.1 }}>
+                Healthy Bite Hub
+              </div>
+              <div style={{ fontSize: 13, color: "#E0EED2", marginTop: 3, fontWeight: 500 }}>
+                Fresh, Boiled & Hot · ₹{EGG_PRICE} / Egg
+              </div>
             </div>
           </div>
 
-          <div style={{ display: "flex", background: "#EFE7D6", borderRadius: 10, padding: 3, gap: 2 }}>
-            {!isAdmin ? (
-              <>
-                <button
-                  onClick={() => setView("order")}
-                  style={{
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "7px 12px",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    background: view === "order" ? "#FFFFFF" : "transparent",
-                    color: view === "order" ? "#2E2318" : "#8A7C69",
-                  }}
-                >
-                  New Order
-                </button>
-                <button
-                  onClick={() => setView("history")}
-                  style={{
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "7px 12px",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    background: view === "history" ? "#FFFFFF" : "transparent",
-                    color: view === "history" ? "#2E2318" : "#8A7C69",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5
-                  }}
-                >
-                  <FaHistory size={12} /> My History
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setView("admin_kitchen")}
-                  style={{
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "7px 12px",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    background: view === "admin_kitchen" ? "#FFFFFF" : "transparent",
-                    color: view === "admin_kitchen" ? "#2E2318" : "#8A7C69",
-                  }}
-                >
-                  Kitchen View
-                </button>
-                <button
-                  onClick={() => setView("admin_all")}
-                  style={{
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "7px 12px",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    background: view === "admin_all" ? "#FFFFFF" : "transparent",
-                    color: view === "admin_all" ? "#2E2318" : "#8A7C69",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5
-                  }}
-                >
-                  <FaTable size={12} /> Master Data
-                </button>
-              </>
-            )}
+          {/* Badges Bar */}
+          <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+            <span style={{ background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+              <FaDumbbell color="#FF6B00" size={11} /> High Protein
+            </span>
+            <span style={{ background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+              <FaLeaf color="#72B043" size={11} /> Fresh Ingredients
+            </span>
+            <span style={{ background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+              <FaHeart color="#FF4D4D" size={11} /> Healthy You
+            </span>
           </div>
         </div>
 
+        {/* HEALTHY QUOTE BANNER */}
+        <div style={{
+          background: "#E8F0E6",
+          border: "1px solid #C8DEC5",
+          borderRadius: 14,
+          padding: "12px 16px",
+          marginBottom: 18,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          transition: "all 0.3s ease"
+        }}>
+          <FaQuoteLeft size={18} color="#1E5128" style={{ flexShrink: 0 }} />
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1E5128", fontStyle: "italic", lineHeight: 1.3 }}>
+            "{HEALTH_QUOTES[quoteIdx]}"
+          </div>
+        </div>
+
+        {/* NAVIGATION TABS */}
+        <div style={{ display: "flex", background: "#E2EBE1", borderRadius: 12, padding: 4, marginBottom: 20, gap: 4 }}>
+          {!isAdmin ? (
+            <>
+              <button
+                onClick={() => setView("order")}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  borderRadius: 9,
+                  padding: "9px 0",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  background: view === "order" ? "#1E5128" : "transparent",
+                  color: view === "order" ? "#FFFFFF" : "#4E6251",
+                  boxShadow: view === "order" ? "0 2px 6px rgba(0,0,0,0.1)" : "none",
+                  transition: "all 0.2s"
+                }}
+              >
+                Order Eggs
+              </button>
+              <button
+                onClick={() => setView("history")}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  borderRadius: 9,
+                  padding: "9px 0",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  background: view === "history" ? "#1E5128" : "transparent",
+                  color: view === "history" ? "#FFFFFF" : "#4E6251",
+                  boxShadow: view === "history" ? "0 2px 6px rgba(0,0,0,0.1)" : "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  transition: "all 0.2s"
+                }}
+              >
+                <FaHistory size={13} /> My Orders
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setView("admin_kitchen")}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  borderRadius: 9,
+                  padding: "9px 0",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  background: view === "admin_kitchen" ? "#1E5128" : "transparent",
+                  color: view === "admin_kitchen" ? "#FFFFFF" : "#4E6251",
+                }}
+              >
+                Kitchen View
+              </button>
+              <button
+                onClick={() => setView("admin_all")}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  borderRadius: 9,
+                  padding: "9px 0",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  background: view === "admin_all" ? "#1E5128" : "transparent",
+                  color: view === "admin_all" ? "#FFFFFF" : "#4E6251",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6
+                }}
+              >
+                <FaTable size={13} /> Master Data
+              </button>
+            </>
+          )}
+        </div>
+
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "#8A7C69", fontSize: 14 }}>Loading orders...</div>
+          <div style={{ textAlign: "center", padding: "60px 0", color: "#6A7B6C", fontSize: 14 }}>Fetching menu & orders...</div>
         ) : view === "order" ? (
-          /* User Order Form View */
+          /* USER ORDER FORM VIEW */
           <div>
             {confirmed ? (
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 28, textAlign: "center", marginBottom: 24 }}>
-                <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#E8EEE4", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                  <FaCheck size={26} color="#4F6A4B" />
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 28, textAlign: "center", boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#E8F5E9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                  <FaCheck size={28} color="#2E7D32" />
                 </div>
-                <div className="headline" style={{ fontSize: 20, fontWeight: 700, marginBottom: 6 }}>Order Placed Successfully!</div>
-                <div style={{ fontSize: 14, color: "#6B5D4D", marginBottom: 12, lineHeight: 1.5 }}>
-                  {confirmed.count} egg{confirmed.count > 1 ? "s" : ""} (₹{confirmed.count * EGG_PRICE}) for {confirmed.name} at {confirmed.floor}.
+                <div className="headline" style={{ fontSize: 22, fontWeight: 700, color: "#1E5128", marginBottom: 6 }}>Order Received!</div>
+                <div style={{ fontSize: 14, color: "#4E6251", marginBottom: 16, lineHeight: 1.5 }}>
+                  <strong>{confirmed.count}</strong> egg{confirmed.count > 1 ? "s" : ""} (₹{confirmed.count * EGG_PRICE}) scheduled for <strong>{confirmed.name}</strong> at <strong>{confirmed.floor}</strong>.
                 </div>
                 <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 20 }}>
                   <button
                     onClick={() => setConfirmed(null)}
-                    style={{ border: "none", background: "#F2A93B", color: "#2E2318", padding: "11px 18px", borderRadius: 10, fontSize: 14, fontWeight: 700 }}
+                    style={{ border: "none", background: "#FF6B00", color: "#FFFFFF", padding: "12px 20px", borderRadius: 12, fontSize: 14, fontWeight: 700 }}
                   >
-                    Place Another
+                    Place Another Order
                   </button>
                   <button
                     onClick={() => setView("history")}
-                    style={{ border: "none", background: "#2E2318", color: "#FAF6EE", padding: "11px 18px", borderRadius: 10, fontSize: 14, fontWeight: 600 }}
+                    style={{ border: "none", background: "#1E5128", color: "#FFFFFF", padding: "12px 20px", borderRadius: 12, fontSize: 14, fontWeight: 600 }}
                   >
-                    View History
+                    View Order History
                   </button>
                 </div>
               </div>
             ) : (
-              <form onSubmit={submitOrder} style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 22, marginBottom: 24 }}>
+              <form onSubmit={submitOrder} style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 22, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
                 {submitError && (
-                  <div style={{ background: "#F5E3DD", border: "1px solid #E0B6A6", color: "#B8452E", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+                  <div style={{ background: "#FFEBEE", border: "1px solid #FFCDD2", color: "#D32F2F", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
                     {submitError}
                   </div>
                 )}
+
+                {/* Name */}
                 <div style={{ marginBottom: 16 }}>
-                  <div style={labelStyle}><FaUser size={14} /> Name</div>
-                  <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" />
+                  <div style={labelStyle}><FaUser size={13} color="#1E5128" /> Customer Name</div>
+                  <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rahul Sharma" />
                   {errors.name && <div style={errorStyle}>{errors.name}</div>}
                 </div>
 
+                {/* Floor Dropdown */}
                 <div style={{ marginBottom: 16 }}>
-                  <div style={labelStyle}><FaMapMarkerAlt size={14} /> Floor / Location</div>
-                  <input style={inputStyle} value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="e.g. 3rd floor, West Desk" />
+                  <div style={labelStyle}><FaMapMarkerAlt size={13} color="#1E5128" /> Select Plot / Location</div>
+                  <select
+                    style={{
+                      ...inputStyle,
+                      appearance: "none",
+                      backgroundImage: `url('data:image/svg+xml;utf8,<svg fill="%231E5128" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>')`,
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 12px center",
+                      cursor: "pointer"
+                    }}
+                    value={floor}
+                    onChange={(e) => setFloor(e.target.value)}
+                  >
+                    <option value="Plot 16A">Plot 16A</option>
+                    <option value="Plot 16B">Plot 16B</option>
+                    <option value="Plot 43">Plot 43</option>
+                  </select>
                   {errors.floor && <div style={errorStyle}>{errors.floor}</div>}
                 </div>
 
+                {/* Mobile Number */}
                 <div style={{ marginBottom: 16 }}>
-                  <div style={labelStyle}><FaPhone size={14} /> Mobile Number</div>
+                  <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> Mobile Number</div>
                   <input
                     style={inputStyle}
                     value={mobile}
@@ -393,26 +539,28 @@ export default function EggOrderApp() {
                   {errors.mobile && <div style={errorStyle}>{errors.mobile}</div>}
                 </div>
 
+                {/* Quantity Selector */}
                 <div style={{ marginBottom: 22 }}>
-                  <div style={labelStyle}><FaEgg size={14} /> Number of Eggs (₹{EGG_PRICE} each)</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={labelStyle}><FaEgg size={13} color="#1E5128" /> Quantity (₹{EGG_PRICE} / egg)</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, background: "#F4F7F4", padding: 10, borderRadius: 12, border: "1px solid #D2E0D4" }}>
                     <button
                       type="button"
                       onClick={() => setCount((c) => Math.max(1, c - 1))}
-                      style={{ width: 40, height: 40, borderRadius: 10, border: "1.5px solid #E3D9C6", background: "#FAF6EE", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: "#1E5128", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center" }}
                     >
                       <FaMinus size={14} />
                     </button>
-                    <div style={{ fontSize: 22, fontWeight: 700, minWidth: 28, textAlign: "center" }}>{count}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, minWidth: 32, textAlign: "center" }}>{count}</div>
                     <button
                       type="button"
                       onClick={() => setCount((c) => Math.min(30, c + 1))}
-                      style={{ width: 40, height: 40, borderRadius: 10, border: "1.5px solid #E3D9C6", background: "#FAF6EE", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: "#1E5128", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center" }}
                     >
                       <FaPlus size={14} />
                     </button>
-                    <div style={{ marginLeft: "auto", fontSize: 16, fontWeight: 700, color: "#D98D1B" }}>
-                      Total: ₹{count * EGG_PRICE}
+                    <div style={{ marginLeft: "auto", textAlign: "right" }}>
+                      <div style={{ fontSize: 11, color: "#6A7B6C" }}>Total Price</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#FF6B00" }}>₹{count * EGG_PRICE}</div>
                     </div>
                   </div>
                   {errors.count && <div style={errorStyle}>{errors.count}</div>}
@@ -421,64 +569,74 @@ export default function EggOrderApp() {
                 <button
                   type="submit"
                   disabled={saving}
-                  style={{ width: "100%", border: "none", background: "#F2A93B", color: "#2E2318", padding: "13px 0", borderRadius: 10, fontSize: 15, fontWeight: 700 }}
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    background: "linear-gradient(135deg, #FF6B00 0%, #E05D00 100%)",
+                    color: "#FFFFFF",
+                    padding: "14px 0",
+                    borderRadius: 12,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    boxShadow: "0 4px 12px rgba(255,107,0,0.25)"
+                  }}
                 >
-                  {saving ? "Placing Order..." : "Place Order"}
+                  {saving ? "Placing Order..." : "Confirm & Place Order"}
                 </button>
               </form>
             )}
           </div>
         ) : view === "history" ? (
-          /* Automatic User History & Partial Payment Dashboard */
+          /* USER HISTORY & PAYMENTS DASHBOARD */
           <div>
-            <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 16, padding: 20, marginBottom: 20 }}>
+            <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 20, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div>
-                  <div className="headline" style={{ fontSize: 17, fontWeight: 700 }}>My Order Dashboard</div>
-                  <div style={{ fontSize: 12, color: "#8A7C69" }}>
-                    {savedMobile ? `Mobile: ${savedMobile}` : "No saved mobile number"}
+                  <div className="headline" style={{ fontSize: 18, fontWeight: 700, color: "#1E5128" }}>My Orders & Balance</div>
+                  <div style={{ fontSize: 12, color: "#6A7B6C" }}>
+                    {savedMobile ? `Mobile: ${savedMobile}` : "No phone number saved"}
                   </div>
                 </div>
                 <button
                   onClick={() => {
-                    const newMob = prompt("Enter mobile number to view history:", savedMobile);
+                    const newMob = prompt("Enter 10-digit mobile number to switch account:", savedMobile);
                     if (newMob && /^\d{10}$/.test(newMob.trim())) {
                       localStorage.setItem("egg_user_mobile", newMob.trim());
                       setSavedMobile(newMob.trim());
                       setMobile(newMob.trim());
                     }
                   }}
-                  style={{ border: "1px solid #E3D9C6", background: "#FAF6EE", padding: "6px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}
+                  style={{ border: "1px solid #D2E0D4", background: "#F4F7F4", padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#1E5128" }}
                 >
-                  Switch Mobile
+                  Switch Number
                 </button>
               </div>
 
               {!savedMobile ? (
-                <div style={{ textAlign: "center", padding: "30px 0", color: "#8A7C69", fontSize: 14 }}>
-                  Please place an order or click "Switch Mobile" above to view your order history.
+                <div style={{ textAlign: "center", padding: "30px 0", color: "#6A7B6C", fontSize: 14 }}>
+                  Please place an order or click "Switch Number" to view your orders.
                 </div>
               ) : (
                 <>
                   {/* Payment Card */}
-                  <div style={{ background: "#FAF6EE", borderRadius: 14, padding: 18, marginBottom: 20, border: "1px solid #EFE7D6" }}>
+                  <div style={{ background: "linear-gradient(135deg, #F4F7F4 0%, #E8F0E6 100%)", borderRadius: 14, padding: 18, marginBottom: 20, border: "1px solid #D2E0D4" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                       <div>
-                        <div style={{ fontSize: 12, color: "#8A7C69", fontWeight: 600 }}>TOTAL UNPAID BALANCE</div>
-                        <div style={{ fontSize: 24, fontWeight: 700, color: userTotalUnpaid > 0 ? "#B8452E" : "#4F6A4B" }}>
+                        <div style={{ fontSize: 11, color: "#6A7B6C", fontWeight: 700, letterSpacing: "0.5px" }}>PENDING BALANCE</div>
+                        <div style={{ fontSize: 26, fontWeight: 800, color: userTotalUnpaid > 0 ? "#D32F2F" : "#2E7D32" }}>
                           ₹{userTotalUnpaid}
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 12, color: "#8A7C69" }}>Total Orders</div>
-                        <div style={{ fontSize: 18, fontWeight: 700 }}>{myOrders.length}</div>
+                        <div style={{ fontSize: 11, color: "#6A7B6C" }}>Total Orders</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>{myOrders.length}</div>
                       </div>
                     </div>
 
                     {userTotalUnpaid > 0 && (
-                      <div style={{ borderTop: "1px solid #E3D9C6", paddingTop: 14, marginTop: 10 }}>
-                        <div style={labelStyle}><FaMoneyBillWave size={13} /> Custom Payment Amount</div>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+                      <div style={{ borderTop: "1px solid #C8DEC5", paddingTop: 14, marginTop: 10 }}>
+                        <div style={labelStyle}><FaMoneyBillWave size={13} color="#1E5128" /> Enter Pay Amount</div>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
                           <input
                             type="number"
                             style={{ ...inputStyle, padding: "8px 12px", width: 140 }}
@@ -488,7 +646,7 @@ export default function EggOrderApp() {
                           />
                           <button
                             onClick={() => setCustomPayAmount(userTotalUnpaid.toString())}
-                            style={{ border: "1px solid #E3D9C6", background: "#FFFFFF", padding: "8px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}
+                            style={{ border: "1px solid #1E5128", background: "#FFFFFF", color: "#1E5128", padding: "8px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700 }}
                           >
                             Pay Full
                           </button>
@@ -501,14 +659,14 @@ export default function EggOrderApp() {
                             alignItems: "center",
                             justifyContent: "center",
                             gap: 8,
-                            background: "#2E2318",
-                            color: "#FAF6EE",
-                            padding: "11px 0",
-                            borderRadius: 10,
-                            fontSize: 14,
+                            background: "#1E5128",
+                            color: "#FFFFFF",
+                            padding: "12px 0",
+                            borderRadius: 12,
+                            fontSize: 15,
                             fontWeight: 700,
                             textDecoration: "none",
-                            width: "100%"
+                            boxShadow: "0 4px 10px rgba(30,81,40,0.2)"
                           }}
                         >
                           <FaQrcode size={16} /> Pay ₹{selectedPayAmount} via UPI
@@ -518,37 +676,37 @@ export default function EggOrderApp() {
                   </div>
 
                   {/* Orders List */}
-                  <div className="headline" style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Previous Orders</div>
+                  <div className="headline" style={{ fontSize: 16, fontWeight: 700, color: "#1E5128", marginBottom: 12 }}>Order History</div>
                   {myOrders.length === 0 ? (
-                    <div style={{ fontSize: 13, color: "#8A7C69", textAlign: "center", padding: "20px 0" }}>
+                    <div style={{ fontSize: 13, color: "#6A7B6C", textAlign: "center", padding: "20px 0" }}>
                       No order records found for this phone number.
                     </div>
                   ) : (
                     myOrders.map((o) => (
-                      <div key={o.id} style={{ border: "1px solid #F0EAD9", borderRadius: 10, padding: 12, marginBottom: 10, background: "#FFFFFF" }}>
+                      <div key={o.id} style={{ border: "1px solid #E2EBE1", borderRadius: 12, padding: 12, marginBottom: 10, background: "#FFFFFF" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                           <div>
-                            <div style={{ fontSize: 14, fontWeight: 600 }}>{o.count} Egg{o.count > 1 ? "s" : ""} · ₹{o.totalCost}</div>
-                            <div style={{ fontSize: 11, color: "#8A7C69", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-                              <FaCalendarAlt size={10} /> {formatDate(o.ts)}
+                            <div style={{ fontSize: 15, fontWeight: 700 }}>{o.count} Egg{o.count > 1 ? "s" : ""} · ₹{o.totalCost}</div>
+                            <div style={{ fontSize: 11, color: "#6A7B6C", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <FaMapMarkerAlt size={10} /> {o.floor || "Plot 16A"} · <FaCalendarAlt size={10} /> {formatDate(o.ts)}
                             </div>
                           </div>
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 6, background: o.delivered ? "#E8EEE4" : "#FBEBD2", color: o.delivered ? "#4F6A4B" : "#8A5B0B" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px", borderRadius: 6, background: o.delivered ? "#E8F5E9" : "#FFF3E0", color: o.delivered ? "#2E7D32" : "#E65100" }}>
                             {o.delivered ? "Delivered" : "Preparing"}
                           </span>
                         </div>
 
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #FAF6EE", paddingTop: 8, fontSize: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #F4F7F4", paddingTop: 8, fontSize: 12 }}>
                           <div>
-                            Paid: <strong style={{ color: "#4F6A4B" }}>₹{o.amountPaid}</strong>
-                            {o.remainingBalance > 0 && <span style={{ color: "#B8452E", marginLeft: 8 }}>(Pending: ₹{o.remainingBalance})</span>}
+                            Paid: <strong style={{ color: "#2E7D32" }}>₹{o.amountPaid}</strong>
+                            {o.remainingBalance > 0 && <span style={{ color: "#D32F2F", marginLeft: 6 }}>(Pending: ₹{o.remainingBalance})</span>}
                           </div>
                           {o.paid ? (
-                            <span style={{ color: "#4F6A4B", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ color: "#2E7D32", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
                               <FaCheck size={10} /> Fully Paid
                             </span>
                           ) : (
-                            <span style={{ color: "#D98D1B", fontWeight: 600 }}>Partially Paid</span>
+                            <span style={{ color: "#FF6B00", fontWeight: 700 }}>Partially Paid</span>
                           )}
                         </div>
                       </div>
@@ -559,33 +717,33 @@ export default function EggOrderApp() {
             </div>
           </div>
         ) : view === "admin_kitchen" ? (
-          /* Admin Kitchen View (Grouping by floor) */
+          /* ADMIN KITCHEN VIEW */
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 700 }}>{totalEggs}</div>
-                <div style={{ fontSize: 11, color: "#8A7C69" }}>Total Eggs</div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#1E5128" }}>{totalEggs}</div>
+                <div style={{ fontSize: 11, color: "#6A7B6C" }}>Total Eggs</div>
               </div>
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: "#4F6A4B" }}>₹{totalCollected}</div>
-                <div style={{ fontSize: 11, color: "#8A7C69" }}>Collected</div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#2E7D32" }}>₹{totalCollected}</div>
+                <div style={{ fontSize: 11, color: "#6A7B6C" }}>Collected</div>
               </div>
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 700, color: totalPending > 0 ? "#B8452E" : "#2E2318" }}>₹{totalPending}</div>
-                <div style={{ fontSize: 11, color: "#8A7C69" }}>Pending</div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 12, padding: "12px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: totalPending > 0 ? "#D32F2F" : "#1E5128" }}>₹{totalPending}</div>
+                <div style={{ fontSize: 11, color: "#6A7B6C" }}>Pending</div>
               </div>
             </div>
 
             {orders.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "50px 0", color: "#8A7C69" }}>No orders available.</div>
+              <div style={{ textAlign: "center", padding: "50px 0", color: "#6A7B6C" }}>No active kitchen orders.</div>
             ) : (
               orders.map((o) => (
-                <div key={o.id} style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                <div key={o.id} style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, padding: 14, marginBottom: 10 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <div style={{ fontSize: 15, fontWeight: 700 }}>{o.name} <span style={{ fontSize: 13, color: "#8A7C69", fontWeight: 500 }}>({o.floor})</span></div>
-                      <div style={{ fontSize: 12, color: "#8A7C69" }}>{o.count} Eggs · Total: ₹{o.totalCost} · {o.mobile}</div>
-                      <div style={{ fontSize: 11, color: "#B3A692", marginTop: 2 }}>{formatDate(o.ts)}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#1E5128" }}>{o.name} <span style={{ fontSize: 13, color: "#FF6B00", fontWeight: 700 }}>({o.floor})</span></div>
+                      <div style={{ fontSize: 12, color: "#4E6251" }}>{o.count} Eggs · Total: ₹{o.totalCost} · {o.mobile}</div>
+                      <div style={{ fontSize: 11, color: "#93A395", marginTop: 2 }}>{formatDate(o.ts)}</div>
                     </div>
                     <button
                       onClick={() => toggleDelivered(o.id, o.delivered)}
@@ -595,8 +753,8 @@ export default function EggOrderApp() {
                         border: "none",
                         fontWeight: 700,
                         fontSize: 12,
-                        background: o.delivered ? "#E8EEE4" : "#F2A93B",
-                        color: o.delivered ? "#4F6A4B" : "#2E2318"
+                        background: o.delivered ? "#E8F5E9" : "#FF6B00",
+                        color: o.delivered ? "#2E7D32" : "#FFFFFF"
                       }}
                     >
                       {o.delivered ? "Delivered" : "Mark Delivered"}
@@ -607,25 +765,25 @@ export default function EggOrderApp() {
             )}
           </div>
         ) : (
-          /* Admin Master Data Dashboard (Full Database Access with Date & Name Filters) */
+          /* ADMIN MASTER DATA DASHBOARD */
           <div>
             {/* Filter Bar */}
-            <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 14, padding: 16, marginBottom: 18 }}>
-              <div className="headline" style={{ fontSize: 15, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                <FaSearch size={14} /> Master Database Filters
+            <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+              <div className="headline" style={{ fontSize: 15, fontWeight: 700, color: "#1E5128", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <FaSearch size={14} /> Search Master Database
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <div>
-                  <div style={labelStyle}>Search Name / Phone / Floor</div>
+                  <div style={labelStyle}>Search Name / Phone / Plot</div>
                   <input
                     style={inputStyle}
                     value={searchName}
                     onChange={(e) => setSearchName(e.target.value)}
-                    placeholder="Type name or phone..."
+                    placeholder="Search name, phone, plot..."
                   />
                 </div>
                 <div>
-                  <div style={labelStyle}><FaCalendarAlt size={12} /> Filter by Date</div>
+                  <div style={labelStyle}><FaCalendarAlt size={12} color="#1E5128" /> Filter Date</div>
                   <input
                     type="date"
                     style={inputStyle}
@@ -637,7 +795,7 @@ export default function EggOrderApp() {
               {(searchName || searchDate) && (
                 <button
                   onClick={() => { setSearchName(""); setSearchDate(""); }}
-                  style={{ border: "none", background: "none", color: "#B8452E", fontSize: 12, fontWeight: 600, marginTop: 10, padding: 0 }}
+                  style={{ border: "none", background: "none", color: "#D32F2F", fontSize: 12, fontWeight: 700, marginTop: 10, padding: 0 }}
                 >
                   Clear Filters
                 </button>
@@ -646,29 +804,29 @@ export default function EggOrderApp() {
 
             {/* Metrics */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 10, padding: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>{filteredAdminOrders.length}</div>
-                <div style={{ fontSize: 10, color: "#8A7C69" }}>Orders</div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1E5128" }}>{filteredAdminOrders.length}</div>
+                <div style={{ fontSize: 10, color: "#6A7B6C" }}>Orders</div>
               </div>
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 10, padding: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>{totalEggs}</div>
-                <div style={{ fontSize: 10, color: "#8A7C69" }}>Eggs</div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1E5128" }}>{totalEggs}</div>
+                <div style={{ fontSize: 10, color: "#6A7B6C" }}>Eggs</div>
               </div>
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 10, padding: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#4F6A4B" }}>₹{totalCollected}</div>
-                <div style={{ fontSize: 10, color: "#8A7C69" }}>Collected</div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#2E7D32" }}>₹{totalCollected}</div>
+                <div style={{ fontSize: 10, color: "#6A7B6C" }}>Collected</div>
               </div>
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 10, padding: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: "#B8452E" }}>₹{totalPending}</div>
-                <div style={{ fontSize: 10, color: "#8A7C69" }}>Pending</div>
+              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#D32F2F" }}>₹{totalPending}</div>
+                <div style={{ fontSize: 10, color: "#6A7B6C" }}>Pending</div>
               </div>
             </div>
 
             {/* Master Data Table */}
-            <div style={{ background: "#FFFFFF", border: "1.5px solid #E3D9C6", borderRadius: 14, overflowX: "auto" }}>
+            <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
                 <thead>
-                  <tr style={{ background: "#FAF6EE", borderBottom: "1.5px solid #E3D9C6", color: "#6B5D4D" }}>
+                  <tr style={{ background: "#F4F7F4", borderBottom: "1.5px solid #D2E0D4", color: "#1E5128" }}>
                     <th style={{ padding: "10px 12px" }}>Date</th>
                     <th style={{ padding: "10px 12px" }}>Customer</th>
                     <th style={{ padding: "10px 12px" }}>Qty</th>
@@ -680,40 +838,40 @@ export default function EggOrderApp() {
                 <tbody>
                   {filteredAdminOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#8A7C69" }}>No orders found matching filters.</td>
+                      <td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#6A7B6C" }}>No matching orders found.</td>
                     </tr>
                   ) : (
                     filteredAdminOrders.map((o) => (
-                      <tr key={o.id} style={{ borderBottom: "1px solid #F0EAD9" }}>
-                        <td style={{ padding: "10px 12px", whiteSpace: "nowrap", fontSize: 11, color: "#8A7C69" }}>{formatDate(o.ts)}</td>
+                      <tr key={o.id} style={{ borderBottom: "1px solid #E2EBE1" }}>
+                        <td style={{ padding: "10px 12px", whiteSpace: "nowrap", fontSize: 11, color: "#6A7B6C" }}>{formatDate(o.ts)}</td>
                         <td style={{ padding: "10px 12px" }}>
-                          <div style={{ fontWeight: 600 }}>{o.name}</div>
-                          <div style={{ fontSize: 11, color: "#8A7C69" }}>{o.floor} · {o.mobile}</div>
+                          <div style={{ fontWeight: 600, color: "#1E5128" }}>{o.name}</div>
+                          <div style={{ fontSize: 11, color: "#6A7B6C" }}>{o.floor} · {o.mobile}</div>
                         </td>
-                        <td style={{ padding: "10px 12px", fontWeight: 600 }}>{o.count}</td>
-                        <td style={{ padding: "10px 12px", fontWeight: 600 }}>₹{o.totalCost}</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 700 }}>{o.count}</td>
+                        <td style={{ padding: "10px 12px", fontWeight: 700 }}>₹{o.totalCost}</td>
                         <td style={{ padding: "10px 12px" }}>
                           {editingOrderId === o.id ? (
                             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                               <input
                                 type="number"
-                                style={{ width: 60, padding: 4, fontSize: 12, borderRadius: 6, border: "1px solid #E3D9C6" }}
+                                style={{ width: 60, padding: 4, fontSize: 12, borderRadius: 6, border: "1px solid #D2E0D4" }}
                                 value={manualPaidInput}
                                 onChange={(e) => setManualPaidInput(e.target.value)}
                               />
                               <button
                                 onClick={() => updateOrderPayment(o.id, manualPaidInput, o.totalCost)}
-                                style={{ border: "none", background: "#4F6A4B", color: "#FFF", padding: "4px 8px", borderRadius: 6, fontSize: 11 }}
+                                style={{ border: "none", background: "#2E7D32", color: "#FFF", padding: "4px 8px", borderRadius: 6, fontSize: 11 }}
                               >
                                 Save
                               </button>
                             </div>
                           ) : (
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <span style={{ fontWeight: 600, color: o.paid ? "#4F6A4B" : "#B8452E" }}>₹{o.amountPaid}</span>
+                              <span style={{ fontWeight: 700, color: o.paid ? "#2E7D32" : "#D32F2F" }}>₹{o.amountPaid}</span>
                               <button
                                 onClick={() => { setEditingOrderId(o.id); setManualPaidInput(o.amountPaid.toString()); }}
-                                style={{ border: "none", background: "none", color: "#8A7C69", padding: 0 }}
+                                style={{ border: "none", background: "none", color: "#6A7B6C", padding: 0 }}
                               >
                                 <FaEdit size={11} />
                               </button>
@@ -728,9 +886,9 @@ export default function EggOrderApp() {
                               padding: "4px 8px",
                               borderRadius: 6,
                               fontSize: 11,
-                              fontWeight: 600,
-                              background: o.paid ? "#E8EEE4" : "#F5E3DD",
-                              color: o.paid ? "#4F6A4B" : "#B8452E"
+                              fontWeight: 700,
+                              background: o.paid ? "#E8F5E9" : "#FFEBEE",
+                              color: o.paid ? "#2E7D32" : "#D32F2F"
                             }}
                           >
                             {o.paid ? "Fully Paid" : "Mark Full"}
@@ -745,9 +903,9 @@ export default function EggOrderApp() {
           </div>
         )}
 
-        <div style={{ textAlign: "center", marginTop: 26, fontSize: 11, color: "#B3A692" }}>
-          <FaUtensils size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />
-          Egg Counter Realtime Dashboard
+        <div style={{ textAlign: "center", marginTop: 26, fontSize: 12, color: "#6A7B6C" }}>
+          <FaUtensils size={12} style={{ verticalAlign: "-2px", marginRight: 4, color: "#1E5128" }} />
+          Healthy Bite Hub · Fresh, Hot & Healthy
         </div>
       </div>
     </div>
