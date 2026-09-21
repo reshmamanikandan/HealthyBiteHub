@@ -24,8 +24,8 @@ import {
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, push, update } from "firebase/database";
 
-const EGG_PRICE = 10;
-const ADMIN_UPI_ID = "9876543210@upi"; // Replace with your actual UPI ID
+const EGG_PRICE = 11;
+const ADMIN_UPI_ID = "reshmamanikandan17@oksbi"; // Replace with your actual UPI ID
 
 const firebaseConfig = {
   apiKey: "AIzaSyAk5fc_KBjXNXNQVjpCJmPmhyWkmjn2q1s",
