@@ -287,13 +287,16 @@ export default function EggOrderApp() {
   };
   
   const errorStyle = { fontSize: 12, color: "#D32F2F", marginTop: 4 };
-  const REGISTERED_BANK_NAME = "RESHMA V M"; // Exact bank name
+  // 1. Set your exact name from GPay / Bank Account
+  const ADMIN_NAME = "RESHMA V M"; // e.g. "RAHUL SHARMA"
 
-  const selectedPayAmount = Number(customPayAmount) > 0 ? Number(customPayAmount) : userTotalUnpaid;
+  // 2. Encode parameters safely
+  const encodedPa = encodeURIComponent(ADMIN_UPI_ID);
+  const encodedPn = encodeURIComponent(ADMIN_NAME);
+  const amount = selectedPayAmount || "0";
 
-  const upiUrl = `upi://pay?pa=${encodeURIComponent(ADMIN_UPI_ID)}&pn=${encodeURIComponent(REGISTERED_BANK_NAME)}&am=${selectedPayAmount}&cu=INR&mode=02&purpose=00`;
-
-
+// Standard UPI Intent URL
+const upiUrl = `upi://pay?pa=${encodedPa}&pn=${encodedPn}&am=${amount}&cu=INR`;
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
