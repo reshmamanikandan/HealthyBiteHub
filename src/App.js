@@ -287,12 +287,12 @@ export default function EggOrderApp() {
   };
   
   const errorStyle = { fontSize: 12, color: "#D32F2F", marginTop: 4 };
-  const REGISTERED_BANK_NAME = "Reshma Manikandan"; // Exact bank name
+  const REGISTERED_BANK_NAME = "RESHMA V M"; // Exact bank name
 
   const selectedPayAmount = Number(customPayAmount) > 0 ? Number(customPayAmount) : userTotalUnpaid;
 
   const upiUrl = `upi://pay?pa=${encodeURIComponent(ADMIN_UPI_ID)}&pn=${encodeURIComponent(REGISTERED_BANK_NAME)}&am=${selectedPayAmount}&cu=INR&mode=02&purpose=00`;
-  
+
 
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
