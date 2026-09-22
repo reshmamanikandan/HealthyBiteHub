@@ -295,8 +295,7 @@ export default function EggOrderApp() {
   const encodedPn = encodeURIComponent(ADMIN_NAME);
   const amount = selectedPayAmount || "0";
 
-// Standard UPI Intent URL
-const upiUrl = `upi://pay?pa=${encodedPa}&pn=${encodedPn}&am=${amount}&cu=INR`;
+  const upiUrl = `upi://pay?pa=${encodeURIComponent(ADMIN_UPI_ID)}&pn=${encodeURIComponent(ADMIN_NAME)}&cu=INR`;
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
