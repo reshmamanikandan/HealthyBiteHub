@@ -251,75 +251,78 @@ export default function EggOrderApp() {
   const selectedPayAmount = Number(customPayAmount) > 0 ? Number(customPayAmount) : userTotalUnpaid;
 
   // RAZORPAY CHECKOUT HANDLER
-  const handleRazorpayPayment = async () => {
-    if (!selectedPayAmount || selectedPayAmount <= 0) {
-      alert("Please enter a valid amount to pay.");
-      return;
-    }
+  const handleRazorpayPayment = () => {
+  if (!selectedPayAmount || selectedPayAmount <= 0) {
+    alert("Please enter a valid amount to pay.");
+    return;
+  }
 
-    if (typeof window.Razorpay === "undefined") {
-      alert("Razorpay SDK failed to load. Please check your internet connection.");
-      return;
-    }
+  if (typeof window.Razorpay === "undefined") {
+    alert("Razorpay SDK failed to load. Please check your internet connection.");
+    return;
+  }
 
-    setIsProcessingPayment(true);
+  setIsProcessingPayment(true);
 
-    try {
-      const amountInPaise = Math.round(selectedPayAmount * 100);
+  const options = {
+    key: process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_Th5HlOrB0CSs8p", // Replace with your actual Key ID
+    amount: Math.round(selectedPayAmount * 100), // Amount in paise
+    currency: "INR",
+    name: "Healthy Bite Hub",
+    description: "Egg Order Payment",
+    image: "/1000386596.png",
+    handler: async function (response) {
+      // Payment Successful
+      try {
+        const unpaidOrders = myOrders.filter((o) => !o.paid);
+        let remainingPayment = selectedPayAmount;
 
-      // 1. Create order on backend (Vercel Serverless Function or Express server)
-      const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: amountInPaise,
-          currency: "INR",
-          receipt: `rcpt_${Date.now()}`
-        }),
-      });
+        for (const order of unpaidOrders) {
+          if (remainingPayment <= 0) break;
 
-      const orderData = await res.json();
+          const payForThisOrder = Math.min(order.remainingBalance, remainingPayment);
+          const newAmountPaid = order.amountPaid + payForThisOrder;
+          const isFullyPaid = newAmountPaid >= order.totalCost;
 
-      if (!res.ok) {
-        throw new Error(orderData.error || "Failed to create payment order.");
-      }
+          const orderRef = ref(db, `orders/${order.id}`);
+          await update(orderRef, {
+            amountPaid: newAmountPaid,
+            paid: isFullyPaid
+          });
 
-      // 2. Configure Razorpay Modal Options
-      // 2. Configure Razorpay Modal Options
-      const options = {
-        // RIGHT HERE: Use the environment variable
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID, 
+          remainingPayment -= payForThisOrder;
+        }
 
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: "Healthy Bite Hub",
-        description: "Egg Order Payment",
-        image: "/1000386596.png",
-        order_id: orderData.order_id,
-        handler: async function (response) {
-          // Payment success logic...
-        },
-        prefill: {
-          contact: savedMobile || "",
-        },
-        theme: {
-          color: "#1E5128",
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", function (response) {
-        alert(`Payment Failed: ${response.error.description}`);
+        setCustomPayAmount("");
+        alert("Payment Successful! Payment ID: " + response.razorpay_payment_id);
+      } catch (err) {
+        console.error("Database update error:", err);
+        alert("Payment received, but updating order history failed.");
+      } finally {
         setIsProcessingPayment(false);
-      });
-
-      rzp.open();
-    } catch (error) {
-      console.error("Razorpay initiation error:", error);
-      alert("Could not start payment. Please try again.");
-      setIsProcessingPayment(false);
-    }
+      }
+    },
+    prefill: {
+      contact: savedMobile || "",
+    },
+    theme: {
+      color: "#1E5128",
+    },
+    modal: {
+      ondismiss: function () {
+        setIsProcessingPayment(false);
+      },
+    },
   };
+
+  const rzp = new window.Razorpay(options);
+  rzp.on("payment.failed", function (response) {
+    alert(`Payment Failed: ${response.error.description}`);
+    setIsProcessingPayment(false);
+  });
+
+  rzp.open();
+};
 
   // Admin Filtered Orders
   const filteredAdminOrders = orders
