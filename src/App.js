@@ -285,8 +285,11 @@ export default function EggOrderApp() {
       }
 
       // 2. Configure Razorpay Modal Options
+      // 2. Configure Razorpay Modal Options
       const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_TfAf7qGYdufUJ4",
+        // RIGHT HERE: Use the environment variable
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID, 
+
         amount: orderData.amount,
         currency: orderData.currency,
         name: "Healthy Bite Hub",
@@ -294,63 +297,13 @@ export default function EggOrderApp() {
         image: "/1000386596.png",
         order_id: orderData.order_id,
         handler: async function (response) {
-          try {
-            // 3. Verify Payment Signature on Server
-            const verifyRes = await fetch("/api/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
-
-            const verifyData = await verifyRes.json();
-
-            if (verifyRes.ok && verifyData.success) {
-              // Update unpaid orders in Firebase Database
-              const unpaidOrders = myOrders.filter((o) => !o.paid);
-              let remainingPayment = selectedPayAmount;
-
-              for (const order of unpaidOrders) {
-                if (remainingPayment <= 0) break;
-
-                const payForThisOrder = Math.min(order.remainingBalance, remainingPayment);
-                const newAmountPaid = order.amountPaid + payForThisOrder;
-                const isFullyPaid = newAmountPaid >= order.totalCost;
-
-                const orderRef = ref(db, `orders/${order.id}`);
-                await update(orderRef, {
-                  amountPaid: newAmountPaid,
-                  paid: isFullyPaid
-                });
-
-                remainingPayment -= payForThisOrder;
-              }
-
-              setCustomPayAmount("");
-              alert("Payment Successful & Verified! Thank you.");
-            } else {
-              alert("Payment verification failed: " + (verifyData.message || "Invalid signature"));
-            }
-          } catch (err) {
-            console.error("Verification error:", err);
-            alert("Payment completed but verification failed. Please contact support.");
-          } finally {
-            setIsProcessingPayment(false);
-          }
+          // Payment success logic...
         },
         prefill: {
           contact: savedMobile || "",
         },
         theme: {
           color: "#1E5128",
-        },
-        modal: {
-          ondismiss: function () {
-            setIsProcessingPayment(false);
-          },
         },
       };
 
