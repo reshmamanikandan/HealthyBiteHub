@@ -8,7 +8,7 @@ import {
   FaPhone, 
   FaUser, 
   FaUtensils, 
-  FaCreditCard,
+  FaQrcode,
   FaHistory,
   FaCalendarAlt,
   FaSearch,
@@ -25,6 +25,7 @@ import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, push, update } from "firebase/database";
 
 const EGG_PRICE = 11;
+const ADMIN_UPI_ID = "reshmamanikandan17@oksbi"; // Replace with your actual UPI ID
 
 const firebaseConfig = {
   apiKey: "AIzaSyAk5fc_KBjXNXNQVjpCJmPmhyWkmjn2q1s",
@@ -97,7 +98,6 @@ export default function EggOrderApp() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // Saved User Mobile from LocalStorage (Auto Login)
   const [savedMobile, setSavedMobile] = useState(() => localStorage.getItem("egg_user_mobile") || "");
@@ -248,125 +248,6 @@ export default function EggOrderApp() {
     .sort((a, b) => b.ts - a.ts);
 
   const userTotalUnpaid = myOrders.reduce((sum, o) => sum + o.remainingBalance, 0);
-  const selectedPayAmount = Number(customPayAmount) > 0 ? Number(customPayAmount) : userTotalUnpaid;
-
-  // RAZORPAY CHECKOUT HANDLER
-  const handleRazorpayPayment = async () => {
-    if (!selectedPayAmount || selectedPayAmount <= 0) {
-      alert("Please enter a valid amount to pay.");
-      return;
-    }
-
-    if (typeof window.Razorpay === "undefined") {
-      alert("Razorpay SDK failed to load. Please check your internet connection.");
-      return;
-    }
-
-    setIsProcessingPayment(true);
-
-    try {
-      const amountInPaise = Math.round(selectedPayAmount * 100);
-
-      // 1. Create order on backend (Vercel Serverless Function or Express server)
-      const res = await fetch("/api/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: amountInPaise,
-          currency: "INR",
-          receipt: `rcpt_${Date.now()}`
-        }),
-      });
-
-      const orderData = await res.json();
-
-      if (!res.ok) {
-        throw new Error(orderData.error || "Failed to create payment order.");
-      }
-
-      // 2. Configure Razorpay Modal Options
-      const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID || "rzp_test_TfAf7qGYdufUJ4",
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: "Healthy Bite Hub",
-        description: "Egg Order Payment",
-        image: "/1000386596.png",
-        order_id: orderData.order_id,
-        handler: async function (response) {
-          try {
-            // 3. Verify Payment Signature on Server
-            const verifyRes = await fetch("/api/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              }),
-            });
-
-            const verifyData = await verifyRes.json();
-
-            if (verifyRes.ok && verifyData.success) {
-              // Update unpaid orders in Firebase Database
-              const unpaidOrders = myOrders.filter((o) => !o.paid);
-              let remainingPayment = selectedPayAmount;
-
-              for (const order of unpaidOrders) {
-                if (remainingPayment <= 0) break;
-
-                const payForThisOrder = Math.min(order.remainingBalance, remainingPayment);
-                const newAmountPaid = order.amountPaid + payForThisOrder;
-                const isFullyPaid = newAmountPaid >= order.totalCost;
-
-                const orderRef = ref(db, `orders/${order.id}`);
-                await update(orderRef, {
-                  amountPaid: newAmountPaid,
-                  paid: isFullyPaid
-                });
-
-                remainingPayment -= payForThisOrder;
-              }
-
-              setCustomPayAmount("");
-              alert("Payment Successful & Verified! Thank you.");
-            } else {
-              alert("Payment verification failed: " + (verifyData.message || "Invalid signature"));
-            }
-          } catch (err) {
-            console.error("Verification error:", err);
-            alert("Payment completed but verification failed. Please contact support.");
-          } finally {
-            setIsProcessingPayment(false);
-          }
-        },
-        prefill: {
-          contact: savedMobile || "",
-        },
-        theme: {
-          color: "#1E5128",
-        },
-        modal: {
-          ondismiss: function () {
-            setIsProcessingPayment(false);
-          },
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", function (response) {
-        alert(`Payment Failed: ${response.error.description}`);
-        setIsProcessingPayment(false);
-      });
-
-      rzp.open();
-    } catch (error) {
-      console.error("Razorpay initiation error:", error);
-      alert("Could not start payment. Please try again.");
-      setIsProcessingPayment(false);
-    }
-  };
 
   // Admin Filtered Orders
   const filteredAdminOrders = orders
@@ -406,7 +287,15 @@ export default function EggOrderApp() {
   };
   
   const errorStyle = { fontSize: 12, color: "#D32F2F", marginTop: 4 };
+  // 1. Set your exact name from GPay / Bank Account
+  const ADMIN_NAME = "RESHMA V M"; // e.g. "RAHUL SHARMA"
 
+  // 2. Encode parameters safely
+  const encodedPa = encodeURIComponent(ADMIN_UPI_ID);
+  const encodedPn = encodeURIComponent(ADMIN_NAME);
+  const amount = selectedPayAmount || "0";
+
+  const upiUrl = `upi://pay?pa=${encodeURIComponent(ADMIN_UPI_ID)}&pn=${encodeURIComponent(ADMIN_NAME)}&cu=INR`;
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
@@ -425,6 +314,7 @@ export default function EggOrderApp() {
           overflow: "hidden"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            {/* Logo Image Placeholder / Display */}
             <div style={{
               width: 72,
               height: 72,
@@ -443,6 +333,7 @@ export default function EggOrderApp() {
                 alt="Healthy Bite Hub" 
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 onError={(e) => {
+                  // Fallback icon if image path isn't local
                   e.target.style.display = 'none';
                   e.target.parentNode.innerHTML = '<span style="font-size: 32px">🥚</span>';
                 }}
@@ -459,6 +350,7 @@ export default function EggOrderApp() {
             </div>
           </div>
 
+          {/* Badges Bar */}
           <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
             <span style={{ background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
               <FaDumbbell color="#FF6B00" size={11} /> High Protein
@@ -765,12 +657,9 @@ export default function EggOrderApp() {
                           </button>
                         </div>
 
-                        {/* RAZORPAY PAYMENT BUTTON */}
-                        <button
-                          onClick={handleRazorpayPayment}
-                          disabled={isProcessingPayment}
+                        <a
+                          href={upiUrl}
                           style={{
-                            width: "100%",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -781,13 +670,12 @@ export default function EggOrderApp() {
                             borderRadius: 12,
                             fontSize: 15,
                             fontWeight: 700,
-                            border: "none",
-                            boxShadow: "0 4px 10px rgba(30,81,40,0.2)",
-                            opacity: isProcessingPayment ? 0.7 : 1
+                            textDecoration: "none",
+                            boxShadow: "0 4px 10px rgba(30,81,40,0.2)"
                           }}
                         >
-                          <FaCreditCard size={16} /> {isProcessingPayment ? "Opening Razorpay..." : `Pay ₹${selectedPayAmount} via Razorpay`}
-                        </button>
+                          <FaQrcode size={16} /> Pay ₹{selectedPayAmount} via UPI
+                        </a>
                       </div>
                     )}
                   </div>
