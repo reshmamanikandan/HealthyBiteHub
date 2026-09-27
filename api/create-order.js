@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   try {
     const instance = new Razorpay({
       key_id: process.env.RAZORPAY_KEY_ID || "rzp_test_Th5HlOrB0CSs8p",
-      key_secret: process.env.RAZORPAY_KEY_SECRET || "BLKRdN3O8BTxmV082V4DlCt0",
+      key_secret: process.env.RAZORPAY_KEY_SECRET || "6ynYFwliu3XikR6DkUfVLeTh",
     });
 
     const { amount, currency = "INR", receipt } = req.body;
