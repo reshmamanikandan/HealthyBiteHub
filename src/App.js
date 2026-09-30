@@ -36,7 +36,7 @@ const firebaseConfig = {
   authDomain: "Yhealthybitehub-app.firebaseapp.com",
   databaseURL: "https://healthybitehub-app-default-rtdb.firebaseio.com",
   projectId: "healthybitehub-app",
-  storageBucket: "healthybitehub-app.app适应.com",
+  storageBucket: "healthybitehub-app.appspot.com",
   messagingSenderId: "168127888521",
   appId: "1:168127888521:web:d32ca57a8975be71185a58"
 };
@@ -110,14 +110,16 @@ export default function EggOrderApp() {
 
   // AUTH / LOGIN STATES
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [loginUserName, setLoginUserName] = useState("");
   const [userMobile, setUserMobile] = useState("");
   const [loginPhone, setLoginPhone] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [enteredOtp, setEnteredOtp] = useState("");
   const [generatedOtp, setGeneratedOtp] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
 
-  // Saved User Mobile from LocalStorage (Auto Login Check)
   const [customPayAmount, setCustomPayAmount] = useState("");
 
   // Rotating Quotes Index
@@ -150,8 +152,13 @@ export default function EggOrderApp() {
       setIsLoggedIn(true);
     } else {
       const storedMobile = localStorage.getItem("egg_user_mobile");
+      const storedName = localStorage.getItem("egg_user_name");
       if (storedMobile && /^\d{10}$/.test(storedMobile)) {
         setUserMobile(storedMobile);
+        if (storedName) {
+          setUserName(storedName);
+          setName(storedName);
+        }
         setIsLoggedIn(true);
       }
     }
@@ -210,22 +217,56 @@ export default function EggOrderApp() {
     };
   }, []);
 
-  // --- LOGIN & OTP HANDLERS ---
-  const handleSendOtp = (e) => {
+  // --- LOGIN & OTP HANDLERS WITH FAST2SMS API INTEGRATION ---
+  const handleSendOtp = async (e) => {
     e.preventDefault();
     setLoginError("");
+
+    if (!loginUserName.trim()) {
+      setLoginError("Please enter your name.");
+      return;
+    }
+
     const cleanPhone = loginPhone.trim();
-    
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       setLoginError("Please enter a valid 10-digit Indian mobile number.");
       return;
     }
 
-    // Generate random 4-digit OTP for simulation
     const randomOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(randomOtp);
-    setOtpSent(true);
-    alert(`Demo OTP for verification is: ${randomOtp}`);
+    setSendingOtp(true);
+
+    try {
+      // Sending SMS via Fast2SMS API
+      const response = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+        method: "POST",
+        headers: {
+          "authorization": process.env.REACT_APP_FAST2SMS_KEY || "YOUR_FAST2SMS_API_KEY",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          variables_values: randomOtp,
+          route: "otp",
+          numbers: cleanPhone
+        })
+      });
+
+      const data = await response.json();
+      if (data && data.return) {
+        setOtpSent(true);
+      } else {
+        // Fallback for demo/dev if API key is not configured
+        setOtpSent(true);
+        alert(`SMS failed or Key missing. Demo OTP: ${randomOtp}`);
+      }
+    } catch (err) {
+      console.error("Error sending OTP SMS:", err);
+      setOtpSent(true);
+      alert(`Demo OTP for verification is: ${randomOtp}`);
+    } finally {
+      setSendingOtp(false);
+    }
   };
 
   const handleVerifyOtp = (e) => {
@@ -239,17 +280,25 @@ export default function EggOrderApp() {
 
     // Login successful
     const cleanPhone = loginPhone.trim();
+    const cleanName = loginUserName.trim();
     localStorage.setItem("egg_user_mobile", cleanPhone);
+    localStorage.setItem("egg_user_name", cleanName);
+    
     setUserMobile(cleanPhone);
+    setUserName(cleanName);
+    setName(cleanName);
     setIsLoggedIn(true);
     setOtpSent(false);
     setEnteredOtp("");
     setLoginPhone("");
+    setLoginUserName("");
   };
 
   const handleLogout = () => {
     localStorage.removeItem("egg_user_mobile");
+    localStorage.removeItem("egg_user_name");
     setUserMobile("");
+    setUserName("");
     setIsLoggedIn(false);
     setView("order");
   };
@@ -318,7 +367,7 @@ export default function EggOrderApp() {
       const newOrderRef = await push(ordersRef, orderData);
 
       setConfirmed({ id: newOrderRef.key, ...orderData });
-      setName("");
+      setName(userName || "");
       setFloor("Plot 16A");
       setCount(2);
       setErrors({});
@@ -454,6 +503,7 @@ export default function EggOrderApp() {
       },
       prefill: {
         contact: userMobile || "",
+        name: userName || ""
       },
       theme: {
         color: "#1E5128",
@@ -513,9 +563,6 @@ export default function EggOrderApp() {
   
   const errorStyle = { fontSize: 12, color: "#D32F2F", marginTop: 4, fontWeight: 500 };
 
-  const todayStr = formatDateShort(Date.now());
-  const isTodayClosed = checkIsDateClosed(todayStr);
-
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
@@ -569,25 +616,41 @@ export default function EggOrderApp() {
               </div>
             </div>
 
+            {/* LOGGED IN USER DISPLAY & LOGOUT ON TOP RIGHT */}
             {isLoggedIn && !isAdmin && (
-              <button
-                onClick={handleLogout}
-                title="Logout"
-                style={{
-                  background: "rgba(255,255,255,0.15)",
-                  border: "none",
-                  color: "#FFF",
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  fontSize: 12,
-                  fontWeight: 600,
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                <div style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#FFD54F",
                   display: "flex",
                   alignItems: "center",
-                  gap: 6
-                }}
-              >
-                <FaSignOutAlt size={12} /> Logout
-              </button>
+                  gap: 6,
+                  background: "rgba(255,255,255,0.1)",
+                  padding: "4px 10px",
+                  borderRadius: 20
+                }}>
+                  <FaUser size={12} color="#FFD54F" /> {userName || "User"}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  title="Logout"
+                  style={{
+                    background: "rgba(255,255,255,0.2)",
+                    border: "none",
+                    color: "#FFF",
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4
+                  }}
+                >
+                  <FaSignOutAlt size={10} /> Logout
+                </button>
+              </div>
             )}
           </div>
 
@@ -611,9 +674,9 @@ export default function EggOrderApp() {
               <div style={{ width: 50, height: 50, borderRadius: "50%", background: "#E8F0E6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
                 <FaLock size={22} color="#1E5128" />
               </div>
-              <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>Mobile Verification</div>
+              <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>User Registration & Verification</div>
               <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4 }}>
-                Please verify your phone number to continue
+                Enter your details to receive an SMS OTP
               </div>
             </div>
 
@@ -625,6 +688,16 @@ export default function EggOrderApp() {
 
             {!otpSent ? (
               <form onSubmit={handleSendOtp}>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={labelStyle}><FaUser size={13} color="#1E5128" /> Enter Username / Full Name</div>
+                  <input
+                    style={inputStyle}
+                    value={loginUserName}
+                    onChange={(e) => setLoginUserName(e.target.value)}
+                    placeholder="e.g. Rahul Sharma"
+                  />
+                </div>
+
                 <div style={{ marginBottom: 18 }}>
                   <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> Enter Mobile Number</div>
                   <input
@@ -635,8 +708,10 @@ export default function EggOrderApp() {
                     inputMode="numeric"
                   />
                 </div>
+
                 <button
                   type="submit"
+                  disabled={sendingOtp}
                   style={{
                     width: "100%",
                     border: "none",
@@ -649,7 +724,7 @@ export default function EggOrderApp() {
                     boxShadow: "0 4px 12px rgba(30,81,40,0.2)"
                   }}
                 >
-                  Send OTP Code
+                  {sendingOtp ? "Sending OTP via SMS..." : "Send OTP via SMS"}
                 </button>
               </form>
             ) : (
@@ -692,7 +767,7 @@ export default function EggOrderApp() {
                     onClick={() => { setOtpSent(false); setEnteredOtp(""); }}
                     style={{ border: "none", background: "none", color: "#1E5128", fontSize: 12, fontWeight: 600 }}
                   >
-                    Change Phone Number
+                    Change Phone / Name
                   </button>
                 </div>
               </form>
@@ -716,26 +791,6 @@ export default function EggOrderApp() {
                 "{HEALTH_QUOTES[quoteIdx]}"
               </div>
             </div>
-
-            {/* CLOSED LEAVE WARNING BANNER */}
-            {isTodayClosed && (
-              <div style={{
-                background: "#FFEBEE",
-                border: "1.5px solid #FFCDD2",
-                borderRadius: 14,
-                padding: "12px 16px",
-                marginBottom: 18,
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                color: "#D32F2F"
-              }}>
-                <FaBan size={20} style={{ flexShrink: 0 }} />
-                <div style={{ fontSize: 13, fontWeight: 700 }}>
-                  Store Closed Today! We are taking a leave. Orders for today cannot be placed.
-                </div>
-              </div>
-            )}
 
             {/* NAVIGATION TABS */}
             <div style={{ display: "flex", background: "#E2EBE1", borderRadius: 12, padding: 4, marginBottom: 20, gap: 4 }}>
@@ -893,9 +948,22 @@ export default function EggOrderApp() {
                         onChange={(e) => setOrderDate(e.target.value)}
                         min={formatDateShort(Date.now())}
                       />
-                      {checkIsDateClosed(orderDate) && (
-                        <div style={{ fontSize: 12, color: "#D32F2F", marginTop: 4, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                          <FaExclamationTriangle size={12} /> Store is CLOSED on this date!
+                      {/* STORE CLOSED MESSAGE IS NOW SHOWN ONLY AFTER SELECTING A CLOSED DATE */}
+                      {orderDate && checkIsDateClosed(orderDate) && (
+                        <div style={{
+                          background: "#FFEBEE",
+                          border: "1px solid #FFCDD2",
+                          borderRadius: 8,
+                          padding: "8px 12px",
+                          marginTop: 8,
+                          fontSize: 12,
+                          color: "#D32F2F",
+                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6
+                        }}>
+                          <FaBan size={14} /> Store is CLOSED on {orderDate}! Orders cannot be placed.
                         </div>
                       )}
                       {errors.orderDate && <div style={errorStyle}>{errors.orderDate}</div>}
@@ -988,7 +1056,7 @@ export default function EggOrderApp() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                     <div>
                       <div className="headline" style={{ fontSize: 18, fontWeight: 700, color: "#1E5128" }}>My Orders & Balance</div>
-                      <div style={{ fontSize: 12, color: "#6A7B6C" }}>Mobile: +91 {userMobile}</div>
+                      <div style={{ fontSize: 12, color: "#6A7B6C" }}>User: {userName} · Mobile: +91 {userMobile}</div>
                     </div>
                   </div>
 
