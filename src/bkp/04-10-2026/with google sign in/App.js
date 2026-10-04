@@ -21,8 +21,7 @@ import {
   FaHeart,
   FaBan,
   FaSignOutAlt,
-  FaGoogle,
-  FaSms
+  FaGoogle
 } from "react-icons/fa";
 
 import { initializeApp } from "firebase/app";
@@ -32,11 +31,7 @@ import {
   GoogleAuthProvider, 
   signInWithPopup, 
   signOut, 
-  onAuthStateChanged,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  PhoneAuthProvider,
-  linkWithCredential
+  onAuthStateChanged 
 } from "firebase/auth";
 
 const EGG_PRICE = 11;
@@ -113,9 +108,9 @@ function formatDateShort(timestamp) {
 
 export default function EggOrderApp() {
   const [isAdmin, setIsAdmin] = useState(false);
-  const [view, setView] = useState("order");
+  const [view, setView] = useState("order"); // 'order', 'history', 'admin_kitchen', 'admin_all', 'admin_leaves'
   const [orders, setOrders] = useState([]);
-  const [leaveDays, setLeaveDays] = useState([]);
+  const [leaveDays, setLeaveDays] = useState([]); // List of dates YYYY-MM-DD
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -125,14 +120,6 @@ export default function EggOrderApp() {
   const [userName, setUserName] = useState("");
   const [userMobile, setUserMobile] = useState("");
   const [loginError, setLoginError] = useState("");
-
-  // PHONE AUTH & LINKING STATES
-  const [authMethod, setAuthMethod] = useState("google"); // 'google' or 'phone'
-  const [phoneNumberInput, setPhoneNumberInput] = useState("");
-  const [otpInput, setOtpInput] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState(null);
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
 
   const [customPayAmount, setCustomPayAmount] = useState("");
 
@@ -237,19 +224,6 @@ export default function EggOrderApp() {
     };
   }, []);
 
-  // --- RECAPTCHA SETUP ---
-  const setupRecaptcha = () => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-        size: "invisible",
-        callback: () => {},
-        "expired-callback": () => {
-          setLoginError("reCAPTCHA expired. Please try sending OTP again.");
-        }
-      });
-    }
-  };
-
   // --- GOOGLE SIGN-IN HANDLER ---
   const handleGoogleSignIn = async () => {
     setLoginError("");
@@ -261,70 +235,6 @@ export default function EggOrderApp() {
     }
   };
 
-  // --- PHONE AUTH HANDLERS ---
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
-    setLoginError("");
-
-    let formattedPhone = phoneNumberInput.trim();
-    if (!formattedPhone.startsWith("+")) {
-      formattedPhone = "+91" + formattedPhone; // Default to India country code
-    }
-
-    if (formattedPhone.length < 12) {
-      setLoginError("Please enter a valid 10-digit mobile number.");
-      return;
-    }
-
-    setIsSendingOtp(true);
-    try {
-      setupRecaptcha();
-      const appVerifier = window.recaptchaVerifier;
-      const result = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      setConfirmationResult(result);
-      setOtpSent(true);
-    } catch (error) {
-      console.error("Error sending OTP:", error);
-      setLoginError(error.message || "Failed to send SMS OTP. Please check the phone number.");
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
-      }
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setLoginError("");
-
-    if (!otpInput || otpInput.trim().length !== 6) {
-      setLoginError("Please enter the 6-digit OTP code.");
-      return;
-    }
-
-    setIsSendingOtp(true);
-    try {
-      if (auth.currentUser) {
-        // Link Phone Number to existing logged-in user
-        const credential = PhoneAuthProvider.credential(confirmationResult.verificationId, otpInput);
-        await linkWithCredential(auth.currentUser, credential);
-      } else {
-        // Sign in with Phone Number directly
-        await confirmationResult.confirm(otpInput);
-      }
-      setOtpSent(false);
-      setPhoneNumberInput("");
-      setOtpInput("");
-    } catch (error) {
-      console.error("Error verifying OTP:", error);
-      setLoginError(error.message || "Invalid OTP code. Please try again.");
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -332,8 +242,6 @@ export default function EggOrderApp() {
       setUserName("");
       setIsLoggedIn(false);
       setView("order");
-      setOtpSent(false);
-      setConfirmationResult(null);
     } catch (error) {
       console.error("Logout Error:", error);
     }
@@ -602,9 +510,6 @@ export default function EggOrderApp() {
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
 
-      {/* Invisible reCAPTCHA Container required for Firebase Phone Auth */}
-      <div id="recaptcha-container"></div>
-
       <div style={{ maxWidth: isAdmin ? 840 : 480, margin: "0 auto", padding: "20px 16px 0" }}>
         
         {/* BRAND HEADER & LOGO CONTAINER */}
@@ -710,48 +615,12 @@ export default function EggOrderApp() {
           <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 24, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <div style={{ width: 50, height: 50, borderRadius: "50%", background: "#E8F0E6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
-                <FaUser size={22} color="#1E5128" />
+                <FaGoogle size={22} color="#1E5128" />
               </div>
               <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>Welcome Back</div>
               <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4 }}>
-                Sign in to place & track your egg orders
+                Sign in with Google to place & track your egg orders
               </div>
-            </div>
-
-            {/* LOGIN METHOD SWITCHER TABS */}
-            <div style={{ display: "flex", background: "#E2EBE1", borderRadius: 10, padding: 3, marginBottom: 18 }}>
-              <button
-                type="button"
-                onClick={() => { setAuthMethod("google"); setLoginError(""); }}
-                style={{
-                  flex: 1,
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 0",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  background: authMethod === "google" ? "#1E5128" : "transparent",
-                  color: authMethod === "google" ? "#FFFFFF" : "#4E6251"
-                }}
-              >
-                Google Sign-In
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAuthMethod("phone"); setLoginError(""); }}
-                style={{
-                  flex: 1,
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 0",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  background: authMethod === "phone" ? "#1E5128" : "transparent",
-                  color: authMethod === "phone" ? "#FFFFFF" : "#4E6251"
-                }}
-              >
-                Phone OTP
-              </button>
             </div>
 
             {loginError && (
@@ -760,101 +629,27 @@ export default function EggOrderApp() {
               </div>
             )}
 
-            {authMethod === "google" ? (
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                style={{
-                  width: "100%",
-                  border: "1.5px solid #D2E0D4",
-                  background: "#FFFFFF",
-                  color: "#1C2D1F",
-                  padding: "14px 0",
-                  borderRadius: 12,
-                  fontSize: 15,
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-                }}
-              >
-                <FaGoogle size={18} color="#4285F4" /> Continue with Google
-              </button>
-            ) : (
-              <div>
-                {!otpSent ? (
-                  <form onSubmit={handleSendOtp}>
-                    <div style={{ marginBottom: 14 }}>
-                      <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> Mobile Number</div>
-                      <input
-                        style={inputStyle}
-                        placeholder="e.g. 9876543210"
-                        value={phoneNumberInput}
-                        onChange={(e) => setPhoneNumberInput(e.target.value)}
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={isSendingOtp}
-                      style={{
-                        width: "100%",
-                        border: "none",
-                        background: "#1E5128",
-                        color: "#FFFFFF",
-                        padding: "12px 0",
-                        borderRadius: 12,
-                        fontSize: 15,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8
-                      }}
-                    >
-                      <FaSms size={16} /> {isSendingOtp ? "Sending OTP..." : "Send OTP"}
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleVerifyOtp}>
-                    <div style={{ marginBottom: 14 }}>
-                      <div style={labelStyle}>Enter 6-Digit SMS Code</div>
-                      <input
-                        style={inputStyle}
-                        placeholder="Enter OTP"
-                        value={otpInput}
-                        onChange={(e) => setOtpInput(e.target.value)}
-                        maxLength={6}
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={isSendingOtp}
-                      style={{
-                        width: "100%",
-                        border: "none",
-                        background: "#FF6B00",
-                        color: "#FFFFFF",
-                        padding: "12px 0",
-                        borderRadius: 12,
-                        fontSize: 15,
-                        fontWeight: 700
-                      }}
-                    >
-                      {isSendingOtp ? "Verifying..." : "Verify & Sign In"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOtpSent(false)}
-                      style={{ border: "none", background: "none", color: "#6A7B6C", fontSize: 12, width: "100%", marginTop: 10, cursor: "pointer" }}
-                    >
-                      Change Phone Number
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              style={{
+                width: "100%",
+                border: "1.5px solid #D2E0D4",
+                background: "#FFFFFF",
+                color: "#1C2D1F",
+                padding: "14px 0",
+                borderRadius: 12,
+                fontSize: 15,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+              }}
+            >
+              <FaGoogle size={18} color="#4285F4" /> Continue with Google
+            </button>
           </div>
         ) : (
           <>
