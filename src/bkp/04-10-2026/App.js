@@ -21,18 +21,13 @@ import {
   FaHeart,
   FaBan,
   FaSignOutAlt,
-  FaGoogle
+  FaLock,
+  FaKey,
+  FaExclamationTriangle
 } from "react-icons/fa";
 
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, push, update, remove } from "firebase/database";
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signOut, 
-  onAuthStateChanged 
-} from "firebase/auth";
+import { getDatabase, ref, onValue, push, update, set, remove } from "firebase/database";
 
 const EGG_PRICE = 11;
 
@@ -48,8 +43,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
 
 const HEALTH_QUOTES = [
   "Eat Clean. Feel Great.",
@@ -115,11 +108,17 @@ export default function EggOrderApp() {
   const [saving, setSaving] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  // AUTH STATES
+  // AUTH / LOGIN STATES
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState("");
+  const [loginUserName, setLoginUserName] = useState("");
   const [userMobile, setUserMobile] = useState("");
+  const [loginPhone, setLoginPhone] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [enteredOtp, setEnteredOtp] = useState("");
+  const [generatedOtp, setGeneratedOtp] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
 
   const [customPayAmount, setCustomPayAmount] = useState("");
 
@@ -151,23 +150,18 @@ export default function EggOrderApp() {
       setIsAdmin(true);
       setView("admin_kitchen");
       setIsLoggedIn(true);
-    }
-
-    // Auth State Listener
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        const displayName = user.displayName || "User";
-        const identifier = user.phoneNumber || user.email || user.uid;
+    } else {
+      const storedMobile = localStorage.getItem("egg_user_mobile");
+      const storedName = localStorage.getItem("egg_user_name");
+      if (storedMobile && /^\d{10}$/.test(storedMobile)) {
+        setUserMobile(storedMobile);
+        if (storedName) {
+          setUserName(storedName);
+          setName(storedName);
+        }
         setIsLoggedIn(true);
-        setUserName(displayName);
-        setName(displayName);
-        setUserMobile(identifier);
-      } else if (!params.get("admin")) {
-        setIsLoggedIn(false);
-        setUserName("");
-        setUserMobile("");
       }
-    });
+    }
 
     // Subscribe to Firebase Orders
     const ordersRef = ref(db, "orders");
@@ -217,34 +211,96 @@ export default function EggOrderApp() {
     }, 8000);
 
     return () => {
-      unsubscribeAuth();
       unsubOrders();
       unsubLeaves();
       clearInterval(quoteInterval);
     };
   }, []);
 
-  // --- GOOGLE SIGN-IN HANDLER ---
-  const handleGoogleSignIn = async () => {
+  // --- LOGIN & OTP HANDLERS WITH FAST2SMS API INTEGRATION ---
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
     setLoginError("");
+
+    if (!loginUserName.trim()) {
+      setLoginError("Please enter your name.");
+      return;
+    }
+
+    const cleanPhone = loginPhone.trim();
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setLoginError("Please enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+
+    const randomOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    setGeneratedOtp(randomOtp);
+    setSendingOtp(true);
+
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error("Error signing in with Google:", error);
-      setLoginError(error.message || "Failed to sign in with Google. Please try again.");
+      // Sending SMS via Fast2SMS API
+      const response = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+        method: "POST",
+        headers: {
+          "authorization": process.env.REACT_APP_FAST2SMS_KEY || "YOUR_FAST2SMS_API_KEY",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          variables_values: randomOtp,
+          route: "otp",
+          numbers: cleanPhone
+        })
+      });
+
+      const data = await response.json();
+      if (data && data.return) {
+        setOtpSent(true);
+      } else {
+        // Fallback for demo/dev if API key is not configured
+        setOtpSent(true);
+        alert(`SMS failed or Key missing. Demo OTP: ${randomOtp}`);
+      }
+    } catch (err) {
+      console.error("Error sending OTP SMS:", err);
+      setOtpSent(true);
+      alert(`Demo OTP for verification is: ${randomOtp}`);
+    } finally {
+      setSendingOtp(false);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      setUserMobile("");
-      setUserName("");
-      setIsLoggedIn(false);
-      setView("order");
-    } catch (error) {
-      console.error("Logout Error:", error);
+  const handleVerifyOtp = (e) => {
+    e.preventDefault();
+    setLoginError("");
+
+    if (enteredOtp.trim() !== generatedOtp) {
+      setLoginError("Invalid OTP. Please check and enter again.");
+      return;
     }
+
+    // Login successful
+    const cleanPhone = loginPhone.trim();
+    const cleanName = loginUserName.trim();
+    localStorage.setItem("egg_user_mobile", cleanPhone);
+    localStorage.setItem("egg_user_name", cleanName);
+    
+    setUserMobile(cleanPhone);
+    setUserName(cleanName);
+    setName(cleanName);
+    setIsLoggedIn(true);
+    setOtpSent(false);
+    setEnteredOtp("");
+    setLoginPhone("");
+    setLoginUserName("");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("egg_user_mobile");
+    localStorage.removeItem("egg_user_name");
+    setUserMobile("");
+    setUserName("");
+    setIsLoggedIn(false);
+    setView("order");
   };
 
   // --- ORDER VALIDATIONS ---
@@ -285,6 +341,7 @@ export default function EggOrderApp() {
       return;
     }
 
+    // Check if selected date is on Leave/Closed
     if (checkIsDateClosed(orderDate)) {
       alert(`Sorry! We are CLOSED on ${orderDate}. No orders can be placed for this date.`);
       setSubmitError(`Orders are closed for ${orderDate}. Please select another date.`);
@@ -615,11 +672,11 @@ export default function EggOrderApp() {
           <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 24, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <div style={{ width: 50, height: 50, borderRadius: "50%", background: "#E8F0E6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
-                <FaGoogle size={22} color="#1E5128" />
+                <FaLock size={22} color="#1E5128" />
               </div>
-              <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>Welcome Back</div>
+              <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>User Registration & Verification</div>
               <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4 }}>
-                Sign in with Google to place & track your egg orders
+                Enter your details to receive an SMS OTP
               </div>
             </div>
 
@@ -629,27 +686,92 @@ export default function EggOrderApp() {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              style={{
-                width: "100%",
-                border: "1.5px solid #D2E0D4",
-                background: "#FFFFFF",
-                color: "#1C2D1F",
-                padding: "14px 0",
-                borderRadius: 12,
-                fontSize: 15,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-              }}
-            >
-              <FaGoogle size={18} color="#4285F4" /> Continue with Google
-            </button>
+            {!otpSent ? (
+              <form onSubmit={handleSendOtp}>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={labelStyle}><FaUser size={13} color="#1E5128" /> Enter Username / Full Name</div>
+                  <input
+                    style={inputStyle}
+                    value={loginUserName}
+                    onChange={(e) => setLoginUserName(e.target.value)}
+                    placeholder="e.g. Rahul Sharma"
+                  />
+                </div>
+
+                <div style={{ marginBottom: 18 }}>
+                  <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> Enter Mobile Number</div>
+                  <input
+                    style={inputStyle}
+                    value={loginPhone}
+                    onChange={(e) => setLoginPhone(e.target.value.replace(/[^\d]/g, "").slice(0, 10))}
+                    placeholder="10-digit mobile number"
+                    inputMode="numeric"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={sendingOtp}
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    background: "linear-gradient(135deg, #1E5128 0%, #143A1B 100%)",
+                    color: "#FFFFFF",
+                    padding: "14px 0",
+                    borderRadius: 12,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    boxShadow: "0 4px 12px rgba(30,81,40,0.2)"
+                  }}
+                >
+                  {sendingOtp ? "Sending OTP via SMS..." : "Send OTP via SMS"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp}>
+                <div style={{ background: "#F4F7F4", border: "1px solid #D2E0D4", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#4E6251" }}>
+                  OTP code sent to <strong>+91 {loginPhone}</strong>.
+                </div>
+
+                <div style={{ marginBottom: 18 }}>
+                  <div style={labelStyle}><FaKey size={13} color="#1E5128" /> Enter 4-Digit OTP</div>
+                  <input
+                    style={{ ...inputStyle, textAlign: "center", letterSpacing: 8, fontSize: 20, fontWeight: 700 }}
+                    value={enteredOtp}
+                    onChange={(e) => setEnteredOtp(e.target.value.replace(/[^\d]/g, "").slice(0, 4))}
+                    placeholder="• • • •"
+                    inputMode="numeric"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    background: "linear-gradient(135deg, #FF6B00 0%, #E05D00 100%)",
+                    color: "#FFFFFF",
+                    padding: "14px 0",
+                    borderRadius: 12,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    boxShadow: "0 4px 12px rgba(255,107,0,0.25)"
+                  }}
+                >
+                  Verify & Proceed
+                </button>
+
+                <div style={{ textAlign: "center", marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setOtpSent(false); setEnteredOtp(""); }}
+                    style={{ border: "none", background: "none", color: "#1E5128", fontSize: 12, fontWeight: 600 }}
+                  >
+                    Change Phone / Name
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         ) : (
           <>
@@ -826,6 +948,7 @@ export default function EggOrderApp() {
                         onChange={(e) => setOrderDate(e.target.value)}
                         min={formatDateShort(Date.now())}
                       />
+                      {/* STORE CLOSED MESSAGE IS NOW SHOWN ONLY AFTER SELECTING A CLOSED DATE */}
                       {orderDate && checkIsDateClosed(orderDate) && (
                         <div style={{
                           background: "#FFEBEE",
@@ -868,9 +991,9 @@ export default function EggOrderApp() {
                       {errors.floor && <div style={errorStyle}>{errors.floor}</div>}
                     </div>
 
-                    {/* Mobile / Account ID (Read Only) */}
+                    {/* Mobile Number (Read Only) */}
                     <div style={{ marginBottom: 16 }}>
-                      <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> User Identifier</div>
+                      <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> Verified Mobile Number</div>
                       <input
                         style={{ ...inputStyle, background: "#F4F7F4", color: "#6A7B6C", fontWeight: 600 }}
                         value={userMobile}
@@ -933,7 +1056,7 @@ export default function EggOrderApp() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                     <div>
                       <div className="headline" style={{ fontSize: 18, fontWeight: 700, color: "#1E5128" }}>My Orders & Balance</div>
-                      <div style={{ fontSize: 12, color: "#6A7B6C" }}>User: {userName} · {userMobile}</div>
+                      <div style={{ fontSize: 12, color: "#6A7B6C" }}>User: {userName} · Mobile: +91 {userMobile}</div>
                     </div>
                   </div>
 
@@ -1002,7 +1125,7 @@ export default function EggOrderApp() {
                   <div className="headline" style={{ fontSize: 16, fontWeight: 700, color: "#1E5128", marginBottom: 12 }}>Order History</div>
                   {myOrders.length === 0 ? (
                     <div style={{ fontSize: 13, color: "#6A7B6C", textAlign: "center", padding: "20px 0" }}>
-                      No order records found for this account.
+                      No order records found for this phone number.
                     </div>
                   ) : (
                     myOrders.map((o) => (
@@ -1063,7 +1186,7 @@ export default function EggOrderApp() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
                           <div style={{ fontSize: 15, fontWeight: 700, color: "#1E5128" }}>{o.name} <span style={{ fontSize: 13, color: "#FF6B00", fontWeight: 700 }}>({o.floor})</span></div>
-                          <div style={{ fontSize: 12, color: "#4E6251" }}>{o.count} Eggs · Total: ₹{o.totalCost} · User: {o.mobile}</div>
+                          <div style={{ fontSize: 12, color: "#4E6251" }}>{o.count} Eggs · Total: ₹{o.totalCost} · Phone: {o.mobile}</div>
                           <div style={{ fontSize: 11, color: "#93A395", marginTop: 2 }}>Date: {o.orderDate || formatDate(o.ts)}</div>
                         </div>
                         <button
