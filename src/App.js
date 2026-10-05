@@ -703,7 +703,6 @@ export default function EggOrderApp() {
                   Healthy Bite Hub
                 </div>
                 <div style={{ fontSize: 13, color: "#E0EED2", marginTop: 3, fontWeight: 500 }}>
-                  Fresh, Boiled · ₹{EGG_PRICE} / Egg
                 </div>
               </div>
             </div>
