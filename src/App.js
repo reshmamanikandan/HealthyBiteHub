@@ -703,7 +703,7 @@ export default function EggOrderApp() {
                   Healthy Bite Hub
                 </div>
                 <div style={{ fontSize: 13, color: "#E0EED2", marginTop: 3, fontWeight: 500 }}>
-                  Fresh, Boiled & Hot · ₹{EGG_PRICE} / Egg
+                  Fresh, Boiled · ₹{EGG_PRICE} / Egg
                 </div>
               </div>
             </div>
@@ -751,7 +751,7 @@ export default function EggOrderApp() {
               <FaDumbbell color="#FF6B00" size={11} /> High Protein
             </span>
             <span style={{ background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-              <FaLeaf color="#72B043" size={11} /> Fresh Ingredients
+              <FaLeaf color="#72B043" size={11} /> Nutrient Rich
             </span>
             <span style={{ background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
               <FaHeart color="#FF4D4D" size={11} /> Healthy You
@@ -1470,7 +1470,7 @@ export default function EggOrderApp() {
 
         <div style={{ textAlign: "center", marginTop: 26, fontSize: 12, color: "#6A7B6C" }}>
           <FaUtensils size={12} style={{ verticalAlign: "-2px", marginRight: 4, color: "#1E5128" }} />
-          Healthy Bite Hub · Fresh, Hot & Healthy
+          Healthy Bite Hub · Fresh & Healthy
         </div>
       </div>
     </div>
