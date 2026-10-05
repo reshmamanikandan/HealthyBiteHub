@@ -25,7 +25,7 @@ import {
 } from "react-icons/fa";
 
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, push, update, remove } from "firebase/database";
+import { getDatabase, ref, onValue, push, update, remove, get, set } from "firebase/database";
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -115,11 +115,17 @@ export default function EggOrderApp() {
   const [saving, setSaving] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
-  // AUTH STATES
+  // AUTH & USER PROFILE STATES
+  const [currentUser, setCurrentUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState("");
   const [userMobile, setUserMobile] = useState("");
   const [loginError, setLoginError] = useState("");
+
+  // PHONE NUMBER COLLECTION MODAL STATES
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [inputPhone, setInputPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
 
   const [customPayAmount, setCustomPayAmount] = useState("");
 
@@ -154,16 +160,31 @@ export default function EggOrderApp() {
     }
 
     // Auth State Listener
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const displayName = user.displayName || "User";
-        const identifier = user.phoneNumber || user.email || user.uid;
+        setCurrentUser(user);
         setIsLoggedIn(true);
         setUserName(displayName);
         setName(displayName);
-        setUserMobile(identifier);
+
+        // Fetch User Profile from Realtime DB to get saved phone number
+        try {
+          const userRef = ref(db, `users/${user.uid}`);
+          const snapshot = await get(userRef);
+          if (snapshot.exists() && snapshot.val().phone) {
+            setUserMobile(snapshot.val().phone);
+          } else {
+            // Prompt user for phone number if not saved yet
+            setShowPhoneModal(true);
+          }
+        } catch (e) {
+          console.error("Error fetching user profile:", e);
+        }
+
       } else if (!params.get("admin")) {
         setIsLoggedIn(false);
+        setCurrentUser(null);
         setUserName("");
         setUserMobile("");
       }
@@ -235,6 +256,39 @@ export default function EggOrderApp() {
     }
   };
 
+  // --- SAVE PHONE NUMBER HANDLER ---
+  const savePhoneNumber = async (e) => {
+    e.preventDefault();
+    setPhoneError("");
+
+    const cleanPhone = inputPhone.trim();
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setPhoneError("Please enter a valid 10-digit Indian phone number.");
+      return;
+    }
+
+    if (!currentUser) return;
+
+    try {
+      const formattedPhone = `+91${cleanPhone}`;
+      const userRef = ref(db, `users/${currentUser.uid}`);
+      
+      await set(userRef, {
+        name: currentUser.displayName || "",
+        email: currentUser.email || "",
+        phone: formattedPhone,
+        updatedAt: Date.now()
+      });
+
+      setUserMobile(formattedPhone);
+      setShowPhoneModal(false);
+      setInputPhone("");
+    } catch (err) {
+      console.error("Error saving phone number:", err);
+      setPhoneError("Failed to save phone number. Please try again.");
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -279,6 +333,11 @@ export default function EggOrderApp() {
   const submitOrder = async (ev) => {
     ev.preventDefault();
     setSubmitError("");
+
+    if (!userMobile) {
+      setShowPhoneModal(true);
+      return;
+    }
 
     if (!validateOrder()) {
       setSubmitError("Please fix the fields highlighted in red.");
@@ -509,6 +568,96 @@ export default function EggOrderApp() {
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
+
+      {/* PHONE NUMBER COLLECTION MODAL */}
+      {showPhoneModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: 16
+        }}>
+          <div style={{
+            background: "#FFFFFF",
+            borderRadius: 18,
+            padding: 24,
+            maxWidth: 400,
+            width: "100%",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.2)"
+          }}>
+            <div style={{ textAlign: "center", marginBottom: 16 }}>
+              <div style={{
+                width: 50,
+                height: 50,
+                borderRadius: "50%",
+                background: "#E8F0E6",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 10px"
+              }}>
+                <FaPhone size={22} color="#1E5128" />
+              </div>
+              <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>
+                Contact Number Required
+              </div>
+              <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4 }}>
+                Please enter your mobile number to receive order updates & deliveries.
+              </div>
+            </div>
+
+            <form onSubmit={savePhoneNumber}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={labelStyle}><FaPhone size={12} color="#1E5128" /> Mobile Number</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <span style={{
+                    padding: "12px 14px",
+                    background: "#F4F7F4",
+                    border: "1.5px solid #D2E0D4",
+                    borderRadius: 12,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: "#2C402E"
+                  }}>+91</span>
+                  <input
+                    type="tel"
+                    maxLength={10}
+                    style={inputStyle}
+                    placeholder="9048604388"
+                    value={inputPhone}
+                    onChange={(e) => setInputPhone(e.target.value.replace(/\D/g, ""))}
+                  />
+                </div>
+                {phoneError && <div style={errorStyle}>{phoneError}</div>}
+              </div>
+
+              <button
+                type="submit"
+                style={{
+                  width: "100%",
+                  border: "none",
+                  background: "#1E5128",
+                  color: "#FFFFFF",
+                  padding: "14px 0",
+                  borderRadius: 12,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  boxShadow: "0 4px 12px rgba(30,81,40,0.2)"
+                }}
+              >
+                Save & Continue
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div style={{ maxWidth: isAdmin ? 840 : 480, margin: "0 auto", padding: "20px 16px 0" }}>
         
@@ -868,14 +1017,32 @@ export default function EggOrderApp() {
                       {errors.floor && <div style={errorStyle}>{errors.floor}</div>}
                     </div>
 
-                    {/* Mobile / Account ID (Read Only) */}
+                    {/* Mobile / Account ID */}
                     <div style={{ marginBottom: 16 }}>
-                      <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> User Identifier</div>
-                      <input
-                        style={{ ...inputStyle, background: "#F4F7F4", color: "#6A7B6C", fontWeight: 600 }}
-                        value={userMobile}
-                        disabled
-                      />
+                      <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> User Mobile Number</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          style={{ ...inputStyle, background: "#F4F7F4", color: userMobile ? "#6A7B6C" : "#D32F2F", fontWeight: 600 }}
+                          value={userMobile || "No mobile number linked"}
+                          disabled
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPhoneModal(true)}
+                          style={{
+                            border: "1px solid #1E5128",
+                            background: "#FFFFFF",
+                            color: "#1E5128",
+                            padding: "0 12px",
+                            borderRadius: 12,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            whiteSpace: "nowrap"
+                          }}
+                        >
+                          {userMobile ? "Edit" : "Add"}
+                        </button>
+                      </div>
                     </div>
 
                     {/* Quantity Selector */}
