@@ -766,9 +766,9 @@ export default function EggOrderApp() {
               <div style={{ width: 50, height: 50, borderRadius: "50%", background: "#E8F0E6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
                 <FaGoogle size={22} color="#1E5128" />
               </div>
-              <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>Welcome Back</div>
+              <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>Welcome</div>
               <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4 }}>
-                Sign in with Google to place & track your egg orders
+                Sign in with Google to place your orders
               </div>
             </div>
 
