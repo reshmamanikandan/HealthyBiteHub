@@ -22,10 +22,12 @@ import {
   FaBan,
   FaSignOutAlt,
   FaGoogle,
-  FaTag,
   FaCommentDots,
   FaTimesCircle,
-  FaPaperPlane
+  FaPaperPlane,
+  FaBrain,
+  FaShieldAlt,
+  FaBolt
 } from "react-icons/fa";
 
 import { initializeApp } from "firebase/app";
@@ -63,9 +65,35 @@ const HEALTH_QUOTES = [
   "High in protein, rich in life — pure health delivered fresh to your spot."
 ];
 
-const PROMOTIONS = [
-  { id: 1, title: "BULK SAVINGS", desc: "Order 10 or more eggs and get 1 extra egg free!", code: "FREEEGG" },
-  { id: 2, title: "DAILY PROTEIN PACK", desc: "10% cashback on online payments via Razorpay.", code: "HEALTHY10" }
+const EGG_BENEFITS = [
+  {
+    id: 1,
+    title: "Complete Protein at Just ₹11",
+    desc: "A single egg packs 6 grams of high-quality protein with all 9 essential amino acids for fast muscle recovery and growth.",
+    icon: <FaDumbbell size={18} color="#FF6B00" />,
+    image: "https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=400&q=80"
+  },
+  {
+    id: 2,
+    title: "Brain & Eye Power",
+    desc: "Loaded with Choline for brain health and Lutein & Zeaxanthin to protect your eyes and boost vision.",
+    icon: <FaBrain size={18} color="#1E5128" />,
+    image: "https://images.unsplash.com/photo-1506802913710-40e2e66339c9?auto=format&fit=crop&w=400&q=80"
+  },
+  {
+    id: 3,
+    title: "Weight Management & Energy",
+    desc: "Keeps you full longer, curbs unwanted cravings, and delivers long-lasting steady energy for your busy day.",
+    icon: <FaBolt size={18} color="#FF6B00" />,
+    image: "https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=400&q=80"
+  },
+  {
+    id: 4,
+    title: "Immunity & Heart Health",
+    desc: "Rich in Vitamin D, B12, and healthy fats that support heart wellness and keep your immunity rock solid.",
+    icon: <FaShieldAlt size={18} color="#1E5128" />,
+    image: "https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80"
+  }
 ];
 
 const FONT_STYLE = `
@@ -626,6 +654,67 @@ export default function EggOrderApp() {
   
   const errorStyle = { fontSize: 12, color: "#D32F2F", marginTop: 4, fontWeight: 500 };
 
+  // COMPONENT FOR HEALTH BENEFITS DISPLAY
+  const HealthBenefitsSection = () => (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
+        <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>
+          Why Eggs Are Nature's Superfood 🥚
+        </div>
+        <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4 }}>
+          Get maximum daily nutrition for just <span style={{ color: "#FF6B00", fontWeight: 700 }}>₹11 per egg</span>!
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {EGG_BENEFITS.map((item) => (
+          <div key={item.id} style={{
+            background: "#FFFFFF",
+            border: "1.5px solid #D2E0D4",
+            borderRadius: 14,
+            overflow: "hidden",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column"
+          }}>
+            <div style={{ height: 100, width: "100%", overflow: "hidden", position: "relative" }}>
+              <img 
+                src={item.image} 
+                alt={item.title} 
+                style={{ width: "100%", height: "100%", objectFit: "cover" }} 
+              />
+              <div style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                background: "rgba(255,255,255,0.9)",
+                borderRadius: "50%",
+                width: 32,
+                height: 32,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
+              }}>
+                {item.icon}
+              </div>
+            </div>
+            <div style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#1E5128", marginBottom: 4, lineHeight: 1.2 }}>
+                  {item.title}
+                </div>
+                <div style={{ fontSize: 11, color: "#6A7B6C", lineHeight: 1.3 }}>
+                  {item.desc}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="egg-app" style={{ padding: "0 0 40px" }}>
       <style>{FONT_STYLE}</style>
@@ -764,6 +853,7 @@ export default function EggOrderApp() {
                   Healthy Bite Hub
                 </div>
                 <div style={{ fontSize: 13, color: "#E0EED2", marginTop: 3, fontWeight: 500 }}>
+                  Pure Nutrition at ₹11 / Egg
                 </div>
               </div>
             </div>
@@ -819,46 +909,51 @@ export default function EggOrderApp() {
           </div>
         </div>
 
-        {/* LOGIN SCREEN IF NOT LOGGED IN */}
+        {/* LOGIN SCREEN WITH HEALTH BENEFITS IF NOT LOGGED IN */}
         {!isLoggedIn ? (
-          <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 24, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
-            <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ width: 50, height: 50, borderRadius: "50%", background: "#E8F0E6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
-                <FaGoogle size={22} color="#1E5128" />
+          <div>
+            <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 24, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ width: 50, height: 50, borderRadius: "50%", background: "#E8F0E6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
+                  <FaGoogle size={22} color="#1E5128" />
+                </div>
+                <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>Welcome</div>
+                <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4 }}>
+                  Sign in with Google to place your egg orders
+                </div>
               </div>
-              <div className="headline" style={{ fontSize: 20, fontWeight: 700, color: "#1E5128" }}>Welcome</div>
-              <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4 }}>
-                Sign in with Google to place your orders
-              </div>
+
+              {loginError && (
+                <div style={{ background: "#FFEBEE", border: "1px solid #FFCDD2", color: "#D32F2F", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+                  {loginError}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                style={{
+                  width: "100%",
+                  border: "1.5px solid #D2E0D4",
+                  background: "#FFFFFF",
+                  color: "#1C2D1F",
+                  padding: "14px 0",
+                  borderRadius: 12,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+                }}
+              >
+                <FaGoogle size={18} color="#4285F4" /> Continue with Google
+              </button>
             </div>
 
-            {loginError && (
-              <div style={{ background: "#FFEBEE", border: "1px solid #FFCDD2", color: "#D32F2F", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
-                {loginError}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              style={{
-                width: "100%",
-                border: "1.5px solid #D2E0D4",
-                background: "#FFFFFF",
-                color: "#1C2D1F",
-                padding: "14px 0",
-                borderRadius: 12,
-                fontSize: 15,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
-              }}
-            >
-              <FaGoogle size={18} color="#4285F4" /> Continue with Google
-            </button>
+            {/* HEALTH BENEFITS SECTION ON FIRST LOGIN PAGE */}
+            <HealthBenefitsSection />
           </div>
         ) : (
           <>
@@ -1007,31 +1102,6 @@ export default function EggOrderApp() {
             ) : view === "order" ? (
               /* USER ORDER FORM VIEW */
               <div>
-                {/* PROMOTIONS & OFFERS BANNER */}
-                <div style={{ marginBottom: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "#1E5128", fontWeight: 700, fontSize: 14 }}>
-                    <FaTag color="#FF6B00" /> Active Promotions & Offers
-                  </div>
-                  <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
-                    {PROMOTIONS.map((promo) => (
-                      <div key={promo.id} style={{
-                        minWidth: 200,
-                        background: "linear-gradient(135deg, #FFF8E1 0%, #FFE0B2 100%)",
-                        border: "1px dashed #FF6B00",
-                        borderRadius: 12,
-                        padding: 12,
-                        flexShrink: 0
-                      }}>
-                        <div style={{ fontSize: 10, fontWeight: 800, color: "#E65100", letterSpacing: "0.5px" }}>{promo.title}</div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#333", marginTop: 4 }}>{promo.desc}</div>
-                        <div style={{ marginTop: 8, fontSize: 11, background: "#FFFFFF", padding: "2px 8px", borderRadius: 4, display: "inline-block", fontWeight: 700, color: "#1E5128", border: "1px solid #FFE0B2" }}>
-                          Code: {promo.code}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {confirmed ? (
                   <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 28, textAlign: "center", boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
                     <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#E8F5E9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
@@ -1057,146 +1127,151 @@ export default function EggOrderApp() {
                     </div>
                   </div>
                 ) : (
-                  <form onSubmit={submitOrder} style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 22, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
-                    {submitError && (
-                      <div style={{ background: "#FFEBEE", border: "1px solid #FFCDD2", color: "#D32F2F", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
-                        {submitError}
-                      </div>
-                    )}
-
-                    {/* Customer Name */}
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={labelStyle}><FaUser size={13} color="#1E5128" /> Customer Name</div>
-                      <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rahul Sharma" />
-                      {errors.name && <div style={errorStyle}>{errors.name}</div>}
-                    </div>
-
-                    {/* Delivery Date Selection */}
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={labelStyle}><FaCalendarAlt size={13} color="#1E5128" /> Select Order Date</div>
-                      <input
-                        type="date"
-                        style={inputStyle}
-                        value={orderDate}
-                        onChange={(e) => setOrderDate(e.target.value)}
-                        min={formatDateShort(Date.now())}
-                      />
-                      {orderDate && checkIsDateClosed(orderDate) && (
-                        <div style={{
-                          background: "#FFEBEE",
-                          border: "1px solid #FFCDD2",
-                          borderRadius: 8,
-                          padding: "8px 12px",
-                          marginTop: 8,
-                          fontSize: 12,
-                          color: "#D32F2F",
-                          fontWeight: 600,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6
-                        }}>
-                          <FaBan size={14} /> Store is CLOSED on {orderDate}! Orders cannot be placed.
+                  <>
+                    <form onSubmit={submitOrder} style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 22, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
+                      {submitError && (
+                        <div style={{ background: "#FFEBEE", border: "1px solid #FFCDD2", color: "#D32F2F", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+                          {submitError}
                         </div>
                       )}
-                      {errors.orderDate && <div style={errorStyle}>{errors.orderDate}</div>}
-                    </div>
 
-                    {/* Plot Dropdown */}
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={labelStyle}><FaMapMarkerAlt size={13} color="#1E5128" /> Select Plot / Location</div>
-                      <select
-                        style={{
-                          ...inputStyle,
-                          appearance: "none",
-                          backgroundImage: `url('data:image/svg+xml;utf8,<svg fill="%231E5128" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>')`,
-                          backgroundRepeat: "no-repeat",
-                          backgroundPosition: "right 12px center",
-                          cursor: "pointer"
-                        }}
-                        value={floor}
-                        onChange={(e) => setFloor(e.target.value)}
-                      >
-                        <option value="Plot 16A">Plot 16A</option>
-                        <option value="Plot 16B">Plot 16B</option>
-                        <option value="Plot 43">Plot 43</option>
-                      </select>
-                      {errors.floor && <div style={errorStyle}>{errors.floor}</div>}
-                    </div>
-
-                    {/* Mobile / Account ID */}
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> User Mobile Number</div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <input
-                          style={{ ...inputStyle, background: "#F4F7F4", color: userMobile ? "#6A7B6C" : "#D32F2F", fontWeight: 600 }}
-                          value={userMobile || "No mobile number linked"}
-                          disabled
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPhoneModal(true)}
-                          style={{
-                            border: "1px solid #1E5128",
-                            background: "#FFFFFF",
-                            color: "#1E5128",
-                            padding: "0 12px",
-                            borderRadius: 12,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            whiteSpace: "nowrap"
-                          }}
-                        >
-                          {userMobile ? "Edit" : "Add"}
-                        </button>
+                      {/* Customer Name */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={labelStyle}><FaUser size={13} color="#1E5128" /> Customer Name</div>
+                        <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rahul Sharma" />
+                        {errors.name && <div style={errorStyle}>{errors.name}</div>}
                       </div>
-                    </div>
 
-                    {/* Quantity Selector */}
-                    <div style={{ marginBottom: 22 }}>
-                      <div style={labelStyle}><FaEgg size={13} color="#1E5128" /> Quantity (₹{EGG_PRICE} / egg)</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 14, background: "#F4F7F4", padding: 10, borderRadius: 12, border: "1px solid #D2E0D4" }}>
-                        <button
-                          type="button"
-                          onClick={() => setCount((c) => Math.max(1, c - 1))}
-                          style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: "#1E5128", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      {/* Delivery Date Selection */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={labelStyle}><FaCalendarAlt size={13} color="#1E5128" /> Select Order Date</div>
+                        <input
+                          type="date"
+                          style={inputStyle}
+                          value={orderDate}
+                          onChange={(e) => setOrderDate(e.target.value)}
+                          min={formatDateShort(Date.now())}
+                        />
+                        {orderDate && checkIsDateClosed(orderDate) && (
+                          <div style={{
+                            background: "#FFEBEE",
+                            border: "1px solid #FFCDD2",
+                            borderRadius: 8,
+                            padding: "8px 12px",
+                            marginTop: 8,
+                            fontSize: 12,
+                            color: "#D32F2F",
+                            fontWeight: 600,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6
+                          }}>
+                            <FaBan size={14} /> Store is CLOSED on {orderDate}! Orders cannot be placed.
+                          </div>
+                        )}
+                        {errors.orderDate && <div style={errorStyle}>{errors.orderDate}</div>}
+                      </div>
+
+                      {/* Plot Dropdown */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={labelStyle}><FaMapMarkerAlt size={13} color="#1E5128" /> Select Plot / Location</div>
+                        <select
+                          style={{
+                            ...inputStyle,
+                            appearance: "none",
+                            backgroundImage: `url('data:image/svg+xml;utf8,<svg fill="%231E5128" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>')`,
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "right 12px center",
+                            cursor: "pointer"
+                          }}
+                          value={floor}
+                          onChange={(e) => setFloor(e.target.value)}
                         >
-                          <FaMinus size={14} />
-                        </button>
-                        <div style={{ fontSize: 22, fontWeight: 700, minWidth: 32, textAlign: "center" }}>{count}</div>
-                        <button
-                          type="button"
-                          onClick={() => setCount((c) => Math.min(30, c + 1))}
-                          style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: "#1E5128", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center" }}
-                        >
-                          <FaPlus size={14} />
-                        </button>
-                        <div style={{ marginLeft: "auto", textAlign: "right" }}>
-                          <div style={{ fontSize: 11, color: "#6A7B6C" }}>Total Price</div>
-                          <div style={{ fontSize: 20, fontWeight: 700, color: "#FF6B00" }}>₹{count * EGG_PRICE}</div>
+                          <option value="Plot 16A">Plot 16A</option>
+                          <option value="Plot 16B">Plot 16B</option>
+                          <option value="Plot 43">Plot 43</option>
+                        </select>
+                        {errors.floor && <div style={errorStyle}>{errors.floor}</div>}
+                      </div>
+
+                      {/* Mobile / Account ID */}
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={labelStyle}><FaPhone size={13} color="#1E5128" /> User Mobile Number</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input
+                            style={{ ...inputStyle, background: "#F4F7F4", color: userMobile ? "#6A7B6C" : "#D32F2F", fontWeight: 600 }}
+                            value={userMobile || "No mobile number linked"}
+                            disabled
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPhoneModal(true)}
+                            style={{
+                              border: "1px solid #1E5128",
+                              background: "#FFFFFF",
+                              color: "#1E5128",
+                              padding: "0 12px",
+                              borderRadius: 12,
+                              fontSize: 12,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {userMobile ? "Edit" : "Add"}
+                          </button>
                         </div>
                       </div>
-                      {errors.count && <div style={errorStyle}>{errors.count}</div>}
-                    </div>
 
-                    <button
-                      type="submit"
-                      disabled={saving || checkIsDateClosed(orderDate)}
-                      style={{
-                        width: "100%",
-                        border: "none",
-                        background: checkIsDateClosed(orderDate) ? "#BDBDBD" : "linear-gradient(135deg, #FF6B00 0%, #E05D00 100%)",
-                        color: "#FFFFFF",
-                        padding: "14px 0",
-                        borderRadius: 12,
-                        fontSize: 16,
-                        fontWeight: 700,
-                        boxShadow: checkIsDateClosed(orderDate) ? "none" : "0 4px 12px rgba(255,107,0,0.25)",
-                        cursor: checkIsDateClosed(orderDate) ? "not-allowed" : "pointer"
-                      }}
-                    >
-                      {saving ? "Placing Order..." : checkIsDateClosed(orderDate) ? "Closed on Selected Date" : "Confirm & Place Order"}
-                    </button>
-                  </form>
+                      {/* Quantity Selector */}
+                      <div style={{ marginBottom: 22 }}>
+                        <div style={labelStyle}><FaEgg size={13} color="#1E5128" /> Quantity (₹{EGG_PRICE} / egg)</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14, background: "#F4F7F4", padding: 10, borderRadius: 12, border: "1px solid #D2E0D4" }}>
+                          <button
+                            type="button"
+                            onClick={() => setCount((c) => Math.max(1, c - 1))}
+                            style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: "#1E5128", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          >
+                            <FaMinus size={14} />
+                          </button>
+                          <div style={{ fontSize: 22, fontWeight: 700, minWidth: 32, textAlign: "center" }}>{count}</div>
+                          <button
+                            type="button"
+                            onClick={() => setCount((c) => Math.min(30, c + 1))}
+                            style={{ width: 42, height: 42, borderRadius: 10, border: "none", background: "#1E5128", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          >
+                            <FaPlus size={14} />
+                          </button>
+                          <div style={{ marginLeft: "auto", textAlign: "right" }}>
+                            <div style={{ fontSize: 11, color: "#6A7B6C" }}>Total Price</div>
+                            <div style={{ fontSize: 20, fontWeight: 700, color: "#FF6B00" }}>₹{count * EGG_PRICE}</div>
+                          </div>
+                        </div>
+                        {errors.count && <div style={errorStyle}>{errors.count}</div>}
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={saving || checkIsDateClosed(orderDate)}
+                        style={{
+                          width: "100%",
+                          border: "none",
+                          background: checkIsDateClosed(orderDate) ? "#BDBDBD" : "linear-gradient(135deg, #FF6B00 0%, #E05D00 100%)",
+                          color: "#FFFFFF",
+                          padding: "14px 0",
+                          borderRadius: 12,
+                          fontSize: 16,
+                          fontWeight: 700,
+                          boxShadow: checkIsDateClosed(orderDate) ? "none" : "0 4px 12px rgba(255,107,0,0.25)",
+                          cursor: checkIsDateClosed(orderDate) ? "not-allowed" : "pointer"
+                        }}
+                      >
+                        {saving ? "Placing Order..." : checkIsDateClosed(orderDate) ? "Closed on Selected Date" : "Confirm & Place Order"}
+                      </button>
+                    </form>
+
+                    {/* HEALTH BENEFITS SECTION ON ORDER TAB */}
+                    <HealthBenefitsSection />
+                  </>
                 )}
               </div>
             ) : view === "history" ? (
