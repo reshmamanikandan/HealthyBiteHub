@@ -78,21 +78,21 @@ const EGG_BENEFITS = [
     title: "Brain & Eye Power",
     desc: "Loaded with Choline for brain health and Lutein & Zeaxanthin to protect your eyes and boost vision.",
     icon: <FaBrain size={18} color="#1E5128" />,
-    image: "https://images.unsplash.com/photo-1506802913710-40e2e66339c9?auto=format&fit=crop&w=400&q=80"
+    image: "/images/brain.jpg"
   },
   {
     id: 3,
     title: "Weight Management & Energy",
     desc: "Keeps you full longer, curbs unwanted cravings, and delivers long-lasting steady energy for your busy day.",
     icon: <FaBolt size={18} color="#FF6B00" />,
-    image: "https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=400&q=80"
+    image: "/images/eggplate.jpg"
   },
   {
     id: 4,
     title: "Immunity & Heart Health",
     desc: "Rich in Vitamin D, B12, and healthy fats that support heart wellness and keep your immunity rock solid.",
     icon: <FaShieldAlt size={18} color="#1E5128" />,
-    image: "https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&w=400&q=80"
+    image: "/images/eggbowl.jpg"
   }
 ];
 
