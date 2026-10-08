@@ -21,11 +21,7 @@ import {
   FaHeart,
   FaBan,
   FaSignOutAlt,
-  FaGoogle,
-  FaTag,
-  FaCommentDots,
-  FaTimesCircle,
-  FaPaperPlane
+  FaGoogle
 } from "react-icons/fa";
 
 import { initializeApp } from "firebase/app";
@@ -63,11 +59,6 @@ const HEALTH_QUOTES = [
   "High in protein, rich in life — pure health delivered fresh to your spot."
 ];
 
-const PROMOTIONS = [
-  { id: 1, title: "BULK SAVINGS", desc: "Order 10 or more eggs and get 1 extra egg free!", code: "FREEEGG" },
-  { id: 2, title: "DAILY PROTEIN PACK", desc: "10% cashback on online payments via Razorpay.", code: "HEALTHY10" }
-];
-
 const FONT_STYLE = `
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
@@ -80,7 +71,7 @@ const FONT_STYLE = `
 .egg-app h1, .egg-app h2, .egg-app .headline, .egg-app .brand-title { 
   font-family: 'Fredoka', cursive, sans-serif; 
 }
-.egg-app input:focus, .egg-app select:focus, .egg-app textarea:focus { 
+.egg-app input:focus, .egg-app select:focus { 
   outline: none; 
   border-color: #1E5128 !important; 
   box-shadow: 0 0 0 3px rgba(30, 81, 40, 0.18); 
@@ -117,7 +108,7 @@ function formatDateShort(timestamp) {
 
 export default function EggOrderApp() {
   const [isAdmin, setIsAdmin] = useState(false);
-  const [view, setView] = useState("order"); // 'order', 'history', 'feedback', 'admin_kitchen', 'admin_all', 'admin_leaves'
+  const [view, setView] = useState("order"); // 'order', 'history', 'admin_kitchen', 'admin_all', 'admin_leaves'
   const [orders, setOrders] = useState([]);
   const [leaveDays, setLeaveDays] = useState([]); // List of dates YYYY-MM-DD
   const [loading, setLoading] = useState(true);
@@ -137,12 +128,6 @@ export default function EggOrderApp() {
   const [phoneError, setPhoneError] = useState("");
 
   const [customPayAmount, setCustomPayAmount] = useState("");
-
-  // FEEDBACK STATE
-  const [feedbackText, setFeedbackText] = useState("");
-  const [feedbackType, setFeedbackType] = useState("Feedback");
-  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
-  const [feedbackError, setFeedbackError] = useState("");
 
   // Rotating Quotes Index
   const [quoteIdx, setQuoteIdx] = useState(0);
@@ -374,7 +359,6 @@ export default function EggOrderApp() {
         count: Number(count),
         price: count * EGG_PRICE,
         delivered: false,
-        cancelled: false,
         paid: false,
         amountPaid: 0,
         orderDate: orderDate,
@@ -393,47 +377,6 @@ export default function EggOrderApp() {
       setSubmitError("Order couldn't be saved. Check connection and try again.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  // --- CANCELLATION HANDLER ---
-  const handleCancelOrder = async (orderId) => {
-    if (window.confirm("Are you sure you want to cancel this order?")) {
-      try {
-        const orderRef = ref(db, `orders/${orderId}`);
-        await update(orderRef, { cancelled: true });
-        alert("Order cancelled successfully.");
-      } catch (e) {
-        console.error("Failed to cancel order:", e);
-        alert("Failed to cancel order. Please try again.");
-      }
-    }
-  };
-
-  // --- FEEDBACK SUBMISSION HANDLER ---
-  const submitFeedback = async (e) => {
-    e.preventDefault();
-    setFeedbackError("");
-
-    if (!feedbackText.trim()) {
-      setFeedbackError("Please write your suggestion or feedback before submitting.");
-      return;
-    }
-
-    try {
-      const feedbackRef = ref(db, "feedback");
-      await push(feedbackRef, {
-        user: userName || "Anonymous",
-        mobile: userMobile || "N/A",
-        type: feedbackType,
-        message: feedbackText.trim(),
-        createdAt: Date.now()
-      });
-      setFeedbackSubmitted(true);
-      setFeedbackText("");
-    } catch (err) {
-      console.error("Error submitting feedback:", err);
-      setFeedbackError("Failed to send feedback. Please try again.");
     }
   };
 
@@ -506,10 +449,7 @@ export default function EggOrderApp() {
     .filter((o) => o.mobile === userMobile)
     .sort((a, b) => b.ts - a.ts);
 
-  const userTotalUnpaid = myOrders
-    .filter((o) => !o.cancelled)
-    .reduce((sum, o) => sum + o.remainingBalance, 0);
-
+  const userTotalUnpaid = myOrders.reduce((sum, o) => sum + o.remainingBalance, 0);
   const selectedPayAmount = Number(customPayAmount) > 0 ? Number(customPayAmount) : userTotalUnpaid;
 
   // RAZORPAY CHECKOUT HANDLER
@@ -535,7 +475,7 @@ export default function EggOrderApp() {
       image: "/1000386596.png",
       handler: async function (response) {
         try {
-          const unpaidOrders = myOrders.filter((o) => !o.paid && !o.cancelled);
+          const unpaidOrders = myOrders.filter((o) => !o.paid);
           let remainingPayment = selectedPayAmount;
 
           for (const order of unpaidOrders) {
@@ -597,10 +537,9 @@ export default function EggOrderApp() {
     })
     .sort((a, b) => b.ts - a.ts);
 
-  const activeAdminOrders = filteredAdminOrders.filter((o) => !o.cancelled);
-  const totalEggs = activeAdminOrders.reduce((s, o) => s + o.count, 0);
-  const totalRevenue = activeAdminOrders.reduce((s, o) => s + o.totalCost, 0);
-  const totalCollected = activeAdminOrders.reduce((s, o) => s + o.amountPaid, 0);
+  const totalEggs = filteredAdminOrders.reduce((s, o) => s + o.count, 0);
+  const totalRevenue = filteredAdminOrders.reduce((s, o) => s + o.totalCost, 0);
+  const totalCollected = filteredAdminOrders.reduce((s, o) => s + o.amountPaid, 0);
   const totalPending = totalRevenue - totalCollected;
 
   const inputStyle = {
@@ -890,7 +829,7 @@ export default function EggOrderApp() {
                       border: "none",
                       borderRadius: 9,
                       padding: "9px 0",
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 700,
                       background: view === "order" ? "#1E5128" : "transparent",
                       color: view === "order" ? "#FFFFFF" : "#4E6251",
@@ -907,7 +846,7 @@ export default function EggOrderApp() {
                       border: "none",
                       borderRadius: 9,
                       padding: "9px 0",
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 700,
                       background: view === "history" ? "#1E5128" : "transparent",
                       color: view === "history" ? "#FFFFFF" : "#4E6251",
@@ -915,32 +854,11 @@ export default function EggOrderApp() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: 4,
+                      gap: 6,
                       transition: "all 0.2s"
                     }}
                   >
-                    <FaHistory size={12} /> My Orders
-                  </button>
-                  <button
-                    onClick={() => { setView("feedback"); setFeedbackSubmitted(false); }}
-                    style={{
-                      flex: 1,
-                      border: "none",
-                      borderRadius: 9,
-                      padding: "9px 0",
-                      fontSize: 13,
-                      fontWeight: 700,
-                      background: view === "feedback" ? "#1E5128" : "transparent",
-                      color: view === "feedback" ? "#FFFFFF" : "#4E6251",
-                      boxShadow: view === "feedback" ? "0 2px 6px rgba(0,0,0,0.1)" : "none",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 4,
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    <FaCommentDots size={12} /> Feedback
+                    <FaHistory size={13} /> My Orders
                   </button>
                 </>
               ) : (
@@ -1007,31 +925,6 @@ export default function EggOrderApp() {
             ) : view === "order" ? (
               /* USER ORDER FORM VIEW */
               <div>
-                {/* PROMOTIONS & OFFERS BANNER */}
-                <div style={{ marginBottom: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, color: "#1E5128", fontWeight: 700, fontSize: 14 }}>
-                    <FaTag color="#FF6B00" /> Active Promotions & Offers
-                  </div>
-                  <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
-                    {PROMOTIONS.map((promo) => (
-                      <div key={promo.id} style={{
-                        minWidth: 200,
-                        background: "linear-gradient(135deg, #FFF8E1 0%, #FFE0B2 100%)",
-                        border: "1px dashed #FF6B00",
-                        borderRadius: 12,
-                        padding: 12,
-                        flexShrink: 0
-                      }}>
-                        <div style={{ fontSize: 10, fontWeight: 800, color: "#E65100", letterSpacing: "0.5px" }}>{promo.title}</div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: "#333", marginTop: 4 }}>{promo.desc}</div>
-                        <div style={{ marginTop: 8, fontSize: 11, background: "#FFFFFF", padding: "2px 8px", borderRadius: 4, display: "inline-block", fontWeight: 700, color: "#1E5128", border: "1px solid #FFE0B2" }}>
-                          Code: {promo.code}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {confirmed ? (
                   <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 28, textAlign: "center", boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
                     <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#E8F5E9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
@@ -1287,138 +1180,28 @@ export default function EggOrderApp() {
                               <FaMapMarkerAlt size={10} /> {o.floor || "Plot 16A"} · <FaCalendarAlt size={10} /> {o.orderDate || formatDate(o.ts)}
                             </div>
                           </div>
-                          <span style={{ 
-                            fontSize: 11, 
-                            fontWeight: 700, 
-                            padding: "4px 8px", 
-                            borderRadius: 6, 
-                            background: o.cancelled ? "#FFEBEE" : o.delivered ? "#E8F5E9" : "#FFF3E0", 
-                            color: o.cancelled ? "#D32F2F" : o.delivered ? "#2E7D32" : "#E65100" 
-                          }}>
-                            {o.cancelled ? "Cancelled" : o.delivered ? "Delivered" : "Preparing"}
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px", borderRadius: 6, background: o.delivered ? "#E8F5E9" : "#FFF3E0", color: o.delivered ? "#2E7D32" : "#E65100" }}>
+                            {o.delivered ? "Delivered" : "Preparing"}
                           </span>
                         </div>
 
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #F4F7F4", paddingTop: 8, fontSize: 12 }}>
                           <div>
                             Paid: <strong style={{ color: "#2E7D32" }}>₹{o.amountPaid}</strong>
-                            {!o.cancelled && o.remainingBalance > 0 && <span style={{ color: "#D32F2F", marginLeft: 6 }}>(Pending: ₹{o.remainingBalance})</span>}
+                            {o.remainingBalance > 0 && <span style={{ color: "#D32F2F", marginLeft: 6 }}>(Pending: ₹{o.remainingBalance})</span>}
                           </div>
-                          
-                          {/* CANCELLATION BUTTON */}
-                          {!o.delivered && !o.cancelled && (
-                            <button
-                              onClick={() => handleCancelOrder(o.id)}
-                              style={{
-                                border: "none",
-                                background: "#FFEBEE",
-                                color: "#D32F2F",
-                                padding: "4px 8px",
-                                borderRadius: 6,
-                                fontSize: 11,
-                                fontWeight: 700,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 4
-                              }}
-                            >
-                              <FaTimesCircle size={10} /> Cancel Order
-                            </button>
-                          )}
-
-                          {o.cancelled && (
-                            <span style={{ color: "#D32F2F", fontWeight: 700 }}>Order Cancelled</span>
-                          )}
-
-                          {!o.cancelled && o.delivered && (
+                          {o.paid ? (
                             <span style={{ color: "#2E7D32", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-                              <FaCheck size={10} /> Completed
+                              <FaCheck size={10} /> Fully Paid
                             </span>
+                          ) : (
+                            <span style={{ color: "#FF6B00", fontWeight: 700 }}>Partially Paid</span>
                           )}
                         </div>
                       </div>
                     ))
                   )}
                 </div>
-              </div>
-            ) : view === "feedback" ? (
-              /* USER FEEDBACK & SUGGESTIONS VIEW */
-              <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 22, boxShadow: "0 6px 18px rgba(0,0,0,0.04)" }}>
-                <div className="headline" style={{ fontSize: 18, fontWeight: 700, color: "#1E5128", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                  <FaCommentDots size={18} /> Feedback & Suggestions
-                </div>
-                <div style={{ fontSize: 13, color: "#6A7B6C", marginBottom: 18 }}>
-                  We value your thoughts! Let us know how we can improve or what you love.
-                </div>
-
-                {feedbackSubmitted ? (
-                  <div style={{ textAlign: "center", padding: "20px 0" }}>
-                    <div style={{ width: 50, height: 50, borderRadius: "50%", background: "#E8F5E9", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-                      <FaCheck size={24} color="#2E7D32" />
-                    </div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#1E5128" }}>Thank You!</div>
-                    <div style={{ fontSize: 13, color: "#6A7B6C", marginTop: 4, marginBottom: 16 }}>Your feedback has been submitted successfully.</div>
-                    <button
-                      onClick={() => setFeedbackSubmitted(false)}
-                      style={{ border: "none", background: "#1E5128", color: "#FFF", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}
-                    >
-                      Submit Another
-                    </button>
-                  </div>
-                ) : (
-                  <form onSubmit={submitFeedback}>
-                    {feedbackError && (
-                      <div style={{ background: "#FFEBEE", border: "1px solid #FFCDD2", color: "#D32F2F", borderRadius: 10, padding: "10px 12px", fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
-                        {feedbackError}
-                      </div>
-                    )}
-
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={labelStyle}>Category</div>
-                      <select
-                        style={{ ...inputStyle, cursor: "pointer" }}
-                        value={feedbackType}
-                        onChange={(e) => setFeedbackType(e.target.value)}
-                      >
-                        <option value="Feedback">General Feedback</option>
-                        <option value="Suggestion">Suggestion / Improvement</option>
-                        <option value="Complaint">Complaint / Issue</option>
-                      </select>
-                    </div>
-
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={labelStyle}>Your Message / Suggestion</div>
-                      <textarea
-                        rows={4}
-                        style={{ ...inputStyle, resize: "vertical" }}
-                        placeholder="Tell us what you think or how we can serve you better..."
-                        value={feedbackText}
-                        onChange={(e) => setFeedbackText(e.target.value)}
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      style={{
-                        width: "100%",
-                        border: "none",
-                        background: "#1E5128",
-                        color: "#FFFFFF",
-                        padding: "12px 0",
-                        borderRadius: 12,
-                        fontSize: 15,
-                        fontWeight: 700,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 8,
-                        boxShadow: "0 4px 12px rgba(30,81,40,0.2)"
-                      }}
-                    >
-                      <FaPaperPlane size={14} /> Submit Feedback
-                    </button>
-                  </form>
-                )}
               </div>
             ) : view === "admin_kitchen" ? (
               /* ADMIN KITCHEN VIEW */
@@ -1442,33 +1225,27 @@ export default function EggOrderApp() {
                   <div style={{ textAlign: "center", padding: "50px 0", color: "#6A7B6C" }}>No active kitchen orders.</div>
                 ) : (
                   orders.map((o) => (
-                    <div key={o.id} style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, padding: 14, marginBottom: 10, opacity: o.cancelled ? 0.6 : 1 }}>
+                    <div key={o.id} style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, padding: 14, marginBottom: 10 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
                           <div style={{ fontSize: 15, fontWeight: 700, color: "#1E5128" }}>{o.name} <span style={{ fontSize: 13, color: "#FF6B00", fontWeight: 700 }}>({o.floor})</span></div>
                           <div style={{ fontSize: 12, color: "#4E6251" }}>{o.count} Eggs · Total: ₹{o.totalCost} · User: {o.mobile}</div>
                           <div style={{ fontSize: 11, color: "#93A395", marginTop: 2 }}>Date: {o.orderDate || formatDate(o.ts)}</div>
                         </div>
-                        {o.cancelled ? (
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#D32F2F", background: "#FFEBEE", padding: "6px 10px", borderRadius: 8 }}>
-                            CANCELLED
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => toggleDelivered(o.id, o.delivered)}
-                            style={{
-                              padding: "8px 14px",
-                              borderRadius: 8,
-                              border: "none",
-                              fontWeight: 700,
-                              fontSize: 12,
-                              background: o.delivered ? "#E8F5E9" : "#FF6B00",
-                              color: o.delivered ? "#2E7D32" : "#FFFFFF"
-                            }}
-                          >
-                            {o.delivered ? "Delivered" : "Mark Delivered"}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => toggleDelivered(o.id, o.delivered)}
+                          style={{
+                            padding: "8px 14px",
+                            borderRadius: 8,
+                            border: "none",
+                            fontWeight: 700,
+                            fontSize: 12,
+                            background: o.delivered ? "#E8F5E9" : "#FF6B00",
+                            color: o.delivered ? "#2E7D32" : "#FFFFFF"
+                          }}
+                        >
+                          {o.delivered ? "Delivered" : "Mark Delivered"}
+                        </button>
                       </div>
                     </div>
                   ))
@@ -1526,7 +1303,7 @@ export default function EggOrderApp() {
                   </div>
 
                   {leaveDays.length === 0 ? (
-                    <div style={{ textAlign: "center", color: "#6A7B6C", fontSize: 13, padding: "20px 0" }}>
+                    <div style={{ textStyle: "center", color: "#6A7B6C", fontSize: 13, padding: "20px 0", textAlign: "center" }}>
                       No store leave days marked yet.
                     </div>
                   ) : (
@@ -1627,10 +1404,10 @@ export default function EggOrderApp() {
                         </tr>
                       ) : (
                         filteredAdminOrders.map((o) => (
-                          <tr key={o.id} style={{ borderBottom: "1px solid #E2EBE1", opacity: o.cancelled ? 0.5 : 1 }}>
+                          <tr key={o.id} style={{ borderBottom: "1px solid #E2EBE1" }}>
                             <td style={{ padding: "10px 12px", whiteSpace: "nowrap", fontSize: 11, color: "#6A7B6C" }}>{o.orderDate || formatDate(o.ts)}</td>
                             <td style={{ padding: "10px 12px" }}>
-                              <div style={{ fontWeight: 600, color: "#1E5128" }}>{o.name} {o.cancelled && <span style={{ color: "#D32F2F", fontSize: 10 }}>(CANCELLED)</span>}</div>
+                              <div style={{ fontWeight: 600, color: "#1E5128" }}>{o.name}</div>
                               <div style={{ fontSize: 11, color: "#6A7B6C" }}>{o.floor} · {o.mobile}</div>
                             </td>
                             <td style={{ padding: "10px 12px", fontWeight: 700 }}>{o.count}</td>
