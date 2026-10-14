@@ -148,7 +148,7 @@ function getTomorrowDateShort() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const year = tomorrow.getFullYear();
   const month = String(tomorrow.getMonth() + 1).padStart(2, "0");
-  const day = String(tomorrow.getDate().toString()).padStart(2, "0");
+  const day = String(tomorrow.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -1160,7 +1160,6 @@ export default function EggOrderApp() {
                           value={orderDate}
                           onChange={(e) => setOrderDate(e.target.value)}
                           min={getTomorrowDateShort()}
-                          max={getTomorrowDateShort()}
                         />
                         {orderDate && checkIsDateClosed(orderDate) && (
                           <div style={{
