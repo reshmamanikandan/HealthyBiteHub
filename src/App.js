@@ -143,6 +143,15 @@ function formatDateShort(timestamp) {
   return `${year}-${month}-${day}`;
 }
 
+function getTomorrowDateShort() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const year = tomorrow.getFullYear();
+  const month = String(tomorrow.getMonth() + 1).padStart(2, "0");
+  const day = String(tomorrow.getDate().toString()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function EggOrderApp() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [view, setView] = useState("order"); // 'order', 'history', 'feedback', 'admin_kitchen', 'admin_all', 'admin_leaves'
@@ -183,7 +192,7 @@ export default function EggOrderApp() {
   const [name, setName] = useState("");
   const [floor, setFloor] = useState("Plot 16A");
   const [count, setCount] = useState(2);
-  const [orderDate, setOrderDate] = useState(formatDateShort(Date.now()));
+  const [orderDate, setOrderDate] = useState(getTomorrowDateShort());
   const [errors, setErrors] = useState({});
   const [confirmed, setConfirmed] = useState(null);
   const [submitError, setSubmitError] = useState("");
@@ -1150,7 +1159,8 @@ export default function EggOrderApp() {
                           style={inputStyle}
                           value={orderDate}
                           onChange={(e) => setOrderDate(e.target.value)}
-                          min={formatDateShort(Date.now())}
+                          min={getTomorrowDateShort()}
+                          max={getTomorrowDateShort()}
                         />
                         {orderDate && checkIsDateClosed(orderDate) && (
                           <div style={{
