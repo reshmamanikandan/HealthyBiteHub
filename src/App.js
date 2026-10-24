@@ -1804,4 +1804,48 @@ export default function EggOrderApp() {
                                 <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                                   <input
                                     type="number"
-                                    style={{ width: 60, padding: 4, fontSize: 12,
+                                    style={{ width: 60, padding: 4, fontSize: 12 }}
+                                    value={manualPaidInput}
+                                    onChange={(e) => setManualPaidInput(e.target.value)}
+                                  />
+                                  <button
+                                    onClick={() => updateOrderPayment(o.id, manualPaidInput, o.totalCost)}
+                                    style={{ background: "#2E7D32", color: "#FFF", border: "none", padding: "4px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700 }}
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <span style={{ color: o.amountPaid >= o.totalCost ? "#2E7D32" : "#D32F2F", fontWeight: 700 }}>
+                                    ₹{o.amountPaid}
+                                  </span>
+                                  <button
+                                    onClick={() => { setEditingOrderId(o.id); setManualPaidInput(o.amountPaid.toString()); }}
+                                    style={{ background: "none", border: "none", color: "#1E5128", cursor: "pointer", padding: 0 }}
+                                    title="Edit Payment"
+                                  >
+                                    <FaEdit size={12} />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: o.delivered ? "#2E7D32" : "#E65100" }}>
+                                {o.delivered ? "Delivered" : "Preparing"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
