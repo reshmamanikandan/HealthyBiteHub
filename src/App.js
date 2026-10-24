@@ -1618,4 +1618,190 @@ export default function EggOrderApp() {
                                 padding: "3px 8px",
                                 borderRadius: 6,
                                 background: item.type === "Complaint" ? "#FFEBEE" : item.type === "Suggestion" ? "#E3F2FD" : "#E8F5E9",
-                                color: item.type === "Complaint" ? "#D32F2F
+                                color: item.type === "Complaint" ? "#D32F2F" : item.type === "Suggestion" ? "#1565C0" : "#2E7D32"
+                              }}>
+                                {item.type}
+                              </span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "#1E5128" }}>{item.user}</span>
+                            </div>
+                            <span style={{ fontSize: 11, color: "#6A7B6C" }}>{formatDate(item.createdAt)}</span>
+                          </div>
+                          <div style={{ fontSize: 13, color: "#2C402E", lineHeight: 1.4, margin: "8px 0" }}>
+                            "{item.message}"
+                          </div>
+                          <div style={{ fontSize: 11, color: "#6A7B6C", display: "flex", alignItems: "center", gap: 4, borderTop: "1px solid #E2EBE1", paddingTop: 6 }}>
+                            <FaPhone size={10} /> Mobile: {item.mobile}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : view === "admin_leaves" ? (
+              /* ADMIN LEAVE DAYS MANAGMENT */
+              <div>
+                <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 20, marginBottom: 20 }}>
+                  <div className="headline" style={{ fontSize: 18, fontWeight: 700, color: "#1E5128", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <FaCalendarAlt size={16} /> Manage Store Leave / Closed Days
+                  </div>
+
+                  <form onSubmit={addLeaveDay} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, alignItems: "end" }}>
+                    <div>
+                      <div style={labelStyle}>Select Leave Date</div>
+                      <input
+                        type="date"
+                        style={inputStyle}
+                        value={newLeaveDate}
+                        onChange={(e) => setNewLeaveDate(e.target.value)}
+                        min={formatDateShort(Date.now())}
+                      />
+                    </div>
+                    <div>
+                      <div style={labelStyle}>Reason / Note</div>
+                      <input
+                        style={inputStyle}
+                        placeholder="e.g. Festival / Maintenance"
+                        value={leaveReason}
+                        onChange={(e) => setLeaveReason(e.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      style={{
+                        background: "#D32F2F",
+                        color: "#FFFFFF",
+                        border: "none",
+                        padding: "12px 18px",
+                        borderRadius: 12,
+                        fontWeight: 700,
+                        fontSize: 14,
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      Mark Closed
+                    </button>
+                  </form>
+                </div>
+
+                <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 20 }}>
+                  <div className="headline" style={{ fontSize: 16, fontWeight: 700, color: "#1E5128", marginBottom: 14 }}>
+                    Configured Leave Days ({leaveDays.length})
+                  </div>
+
+                  {leaveDays.length === 0 ? (
+                    <div style={{ textAlign: "center", color: "#6A7B6C", fontSize: 13, padding: "20px 0" }}>
+                      No store leave days marked yet.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {leaveDays.map((l) => (
+                        <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 12, border: "1px solid #E2EBE1", borderRadius: 12, background: "#FFEBEE" }}>
+                          <div>
+                            <div style={{ fontWeight: 700, color: "#D32F2F", fontSize: 15 }}>{l.date}</div>
+                            <div style={{ fontSize: 12, color: "#4E6251", marginTop: 2 }}>{l.reason}</div>
+                          </div>
+                          <button
+                            onClick={() => removeLeaveDay(l.id)}
+                            style={{ border: "1px solid #D32F2F", background: "#FFFFFF", color: "#D32F2F", padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700 }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* ADMIN MASTER DATA DASHBOARD */
+              <div>
+                {/* Filter Bar */}
+                <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+                  <div className="headline" style={{ fontSize: 15, fontWeight: 700, color: "#1E5128", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                    <FaSearch size={14} /> Search Master Database
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div>
+                      <div style={labelStyle}>Search Name / Phone / Plot</div>
+                      <input
+                        style={inputStyle}
+                        value={searchName}
+                        onChange={(e) => setSearchName(e.target.value)}
+                        placeholder="Search name, phone, plot..."
+                      />
+                    </div>
+                    <div>
+                      <div style={labelStyle}><FaCalendarAlt size={12} color="#1E5128" /> Filter Date</div>
+                      <input
+                        type="date"
+                        style={inputStyle}
+                        value={searchDate}
+                        onChange={(e) => setSearchDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  {(searchName || searchDate) && (
+                    <button
+                      onClick={() => { setSearchName(""); setSearchDate(""); }}
+                      style={{ border: "none", background: "none", color: "#D32F2F", fontSize: 12, fontWeight: 700, marginTop: 10, padding: 0 }}
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+
+                {/* Metrics */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
+                  <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#1E5128" }}>{filteredAdminOrders.length}</div>
+                    <div style={{ fontSize: 10, color: "#6A7B6C" }}>Orders</div>
+                  </div>
+                  <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#1E5128" }}>{totalEggs}</div>
+                    <div style={{ fontSize: 10, color: "#6A7B6C" }}>Eggs</div>
+                  </div>
+                  <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#2E7D32" }}>₹{totalCollected}</div>
+                    <div style={{ fontSize: 10, color: "#6A7B6C" }}>Collected</div>
+                  </div>
+                  <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#D32F2F" }}>₹{totalPending}</div>
+                    <div style={{ fontSize: 10, color: "#6A7B6C" }}>Pending</div>
+                  </div>
+                </div>
+
+                {/* Master Data Table */}
+                <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ background: "#F4F7F4", borderBottom: "1.5px solid #D2E0D4", color: "#1E5128" }}>
+                        <th style={{ padding: "10px 12px" }}>Date</th>
+                        <th style={{ padding: "10px 12px" }}>Customer</th>
+                        <th style={{ padding: "10px 12px" }}>Qty</th>
+                        <th style={{ padding: "10px 12px" }}>Total</th>
+                        <th style={{ padding: "10px 12px" }}>Paid</th>
+                        <th style={{ padding: "10px 12px" }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAdminOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#6A7B6C" }}>No matching orders found.</td>
+                        </tr>
+                      ) : (
+                        filteredAdminOrders.map((o) => (
+                          <tr key={o.id} style={{ borderBottom: "1px solid #E2EBE1", opacity: o.cancelled ? 0.5 : 1 }}>
+                            <td style={{ padding: "10px 12px", whiteSpace: "nowrap", fontSize: 11, color: "#6A7B6C" }}>{o.orderDate || formatDate(o.ts)}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              <div style={{ fontWeight: 600, color: "#1E5128" }}>{o.name} {o.cancelled && <span style={{ color: "#D32F2F", fontSize: 10 }}>(CANCELLED)</span>}</div>
+                              <div style={{ fontSize: 11, color: "#6A7B6C" }}>{o.floor} · {o.mobile}</div>
+                            </td>
+                            <td style={{ padding: "10px 12px", fontWeight: 700 }}>{o.count}</td>
+                            <td style={{ padding: "10px 12px", fontWeight: 700 }}>₹{o.totalCost}</td>
+                            <td style={{ padding: "10px 12px" }}>
+                              {editingOrderId === o.id ? (
+                                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                                  <input
+                                    type="number"
+                                    style={{ width: 60, padding: 4, fontSize: 12,
