@@ -154,9 +154,10 @@ function getTomorrowDateShort() {
 
 export default function EggOrderApp() {
   const [isAdmin, setIsAdmin] = useState(false);
-  const [view, setView] = useState("order"); // 'order', 'history', 'feedback', 'admin_kitchen', 'admin_all', 'admin_leaves'
+  const [view, setView] = useState("order"); // 'order', 'history', 'feedback', 'admin_kitchen', 'admin_all', 'admin_feedback', 'admin_leaves'
   const [orders, setOrders] = useState([]);
   const [leaveDays, setLeaveDays] = useState([]); // List of dates YYYY-MM-DD
+  const [feedbackList, setFeedbackList] = useState([]); // List of customer feedback
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -284,6 +285,21 @@ export default function EggOrderApp() {
       }
     });
 
+    // Subscribe to Firebase Feedback (for Admin view)
+    const feedbackRef = ref(db, "feedback");
+    const unsubFeedback = onValue(feedbackRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.keys(data).map((key) => ({
+          id: key,
+          ...data[key]
+        })).sort((a, b) => b.createdAt - a.createdAt);
+        setFeedbackList(list);
+      } else {
+        setFeedbackList([]);
+      }
+    });
+
     // Rotate Quote every 8 seconds
     const quoteInterval = setInterval(() => {
       setQuoteIdx((prevIdx) => (prevIdx + 1) % HEALTH_QUOTES.length);
@@ -293,6 +309,7 @@ export default function EggOrderApp() {
       unsubscribeAuth();
       unsubOrders();
       unsubLeaves();
+      unsubFeedback();
       clearInterval(quoteInterval);
     };
   }, []);
@@ -1056,7 +1073,7 @@ export default function EggOrderApp() {
                       border: "none",
                       borderRadius: 9,
                       padding: "9px 0",
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 700,
                       background: view === "admin_kitchen" ? "#1E5128" : "transparent",
                       color: view === "admin_kitchen" ? "#FFFFFF" : "#4E6251",
@@ -1071,7 +1088,7 @@ export default function EggOrderApp() {
                       border: "none",
                       borderRadius: 9,
                       padding: "9px 0",
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 700,
                       background: view === "admin_all" ? "#1E5128" : "transparent",
                       color: view === "admin_all" ? "#FFFFFF" : "#4E6251",
@@ -1084,13 +1101,32 @@ export default function EggOrderApp() {
                     <FaTable size={12} /> Master Data
                   </button>
                   <button
+                    onClick={() => setView("admin_feedback")}
+                    style={{
+                      flex: 1,
+                      border: "none",
+                      borderRadius: 9,
+                      padding: "9px 0",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      background: view === "admin_feedback" ? "#1E5128" : "transparent",
+                      color: view === "admin_feedback" ? "#FFFFFF" : "#4E6251",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 4
+                    }}
+                  >
+                    <FaCommentDots size={12} /> Feedback ({feedbackList.length})
+                  </button>
+                  <button
                     onClick={() => setView("admin_leaves")}
                     style={{
                       flex: 1,
                       border: "none",
                       borderRadius: 9,
                       padding: "9px 0",
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 700,
                       background: view === "admin_leaves" ? "#1E5128" : "transparent",
                       color: view === "admin_leaves" ? "#FFFFFF" : "#4E6251",
@@ -1558,227 +1594,28 @@ export default function EggOrderApp() {
                   ))
                 )}
               </div>
-            ) : view === "admin_leaves" ? (
-              /* ADMIN LEAVE DAYS MANAGMENT */
+            ) : view === "admin_feedback" ? (
+              /* ADMIN FEEDBACK VIEW */
               <div>
-                <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 20, marginBottom: 20 }}>
-                  <div className="headline" style={{ fontSize: 18, fontWeight: 700, color: "#1E5128", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-                    <FaCalendarAlt size={16} /> Manage Store Leave / Closed Days
-                  </div>
-
-                  <form onSubmit={addLeaveDay} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10, alignItems: "end" }}>
-                    <div>
-                      <div style={labelStyle}>Select Leave Date</div>
-                      <input
-                        type="date"
-                        style={inputStyle}
-                        value={newLeaveDate}
-                        onChange={(e) => setNewLeaveDate(e.target.value)}
-                        min={formatDateShort(Date.now())}
-                      />
-                    </div>
-                    <div>
-                      <div style={labelStyle}>Reason / Note</div>
-                      <input
-                        style={inputStyle}
-                        placeholder="e.g. Festival / Maintenance"
-                        value={leaveReason}
-                        onChange={(e) => setLeaveReason(e.target.value)}
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      style={{
-                        background: "#D32F2F",
-                        color: "#FFFFFF",
-                        border: "none",
-                        padding: "12px 18px",
-                        borderRadius: 12,
-                        fontWeight: 700,
-                        fontSize: 14,
-                        whiteSpace: "nowrap"
-                      }}
-                    >
-                      Mark Closed
-                    </button>
-                  </form>
-                </div>
-
                 <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 18, padding: 20 }}>
-                  <div className="headline" style={{ fontSize: 16, fontWeight: 700, color: "#1E5128", marginBottom: 14 }}>
-                    Configured Leave Days ({leaveDays.length})
+                  <div className="headline" style={{ fontSize: 18, fontWeight: 700, color: "#1E5128", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <FaCommentDots size={16} /> Customer Feedback & Suggestions ({feedbackList.length})
                   </div>
 
-                  {leaveDays.length === 0 ? (
-                    <div style={{ textAlign: "center", color: "#6A7B6C", fontSize: 13, padding: "20px 0" }}>
-                      No store leave days marked yet.
+                  {feedbackList.length === 0 ? (
+                    <div style={{ textAlign: "center", color: "#6A7B6C", fontSize: 13, padding: "30px 0" }}>
+                      No feedback or suggestions received yet.
                     </div>
                   ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {leaveDays.map((l) => (
-                        <div key={l.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 12, border: "1px solid #E2EBE1", borderRadius: 12, background: "#FFEBEE" }}>
-                          <div>
-                            <div style={{ fontWeight: 700, color: "#D32F2F", fontSize: 15 }}>{l.date}</div>
-                            <div style={{ fontSize: 12, color: "#4E6251", marginTop: 2 }}>{l.reason}</div>
-                          </div>
-                          <button
-                            onClick={() => removeLeaveDay(l.id)}
-                            style={{ border: "1px solid #D32F2F", background: "#FFFFFF", color: "#D32F2F", padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 700 }}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* ADMIN MASTER DATA DASHBOARD */
-              <div>
-                {/* Filter Bar */}
-                <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, padding: 16, marginBottom: 18 }}>
-                  <div className="headline" style={{ fontSize: 15, fontWeight: 700, color: "#1E5128", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                    <FaSearch size={14} /> Search Master Database
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <div>
-                      <div style={labelStyle}>Search Name / Phone / Plot</div>
-                      <input
-                        style={inputStyle}
-                        value={searchName}
-                        onChange={(e) => setSearchName(e.target.value)}
-                        placeholder="Search name, phone, plot..."
-                      />
-                    </div>
-                    <div>
-                      <div style={labelStyle}><FaCalendarAlt size={12} color="#1E5128" /> Filter Date</div>
-                      <input
-                        type="date"
-                        style={inputStyle}
-                        value={searchDate}
-                        onChange={(e) => setSearchDate(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  {(searchName || searchDate) && (
-                    <button
-                      onClick={() => { setSearchName(""); setSearchDate(""); }}
-                      style={{ border: "none", background: "none", color: "#D32F2F", fontSize: 12, fontWeight: 700, marginTop: 10, padding: 0 }}
-                    >
-                      Clear Filters
-                    </button>
-                  )}
-                </div>
-
-                {/* Metrics */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
-                  <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#1E5128" }}>{filteredAdminOrders.length}</div>
-                    <div style={{ fontSize: 10, color: "#6A7B6C" }}>Orders</div>
-                  </div>
-                  <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#1E5128" }}>{totalEggs}</div>
-                    <div style={{ fontSize: 10, color: "#6A7B6C" }}>Eggs</div>
-                  </div>
-                  <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#2E7D32" }}>₹{totalCollected}</div>
-                    <div style={{ fontSize: 10, color: "#6A7B6C" }}>Collected</div>
-                  </div>
-                  <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 10, padding: 10, textAlign: "center" }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#D32F2F" }}>₹{totalPending}</div>
-                    <div style={{ fontSize: 10, color: "#6A7B6C" }}>Pending</div>
-                  </div>
-                </div>
-
-                {/* Master Data Table */}
-                <div style={{ background: "#FFFFFF", border: "1.5px solid #D2E0D4", borderRadius: 14, overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
-                    <thead>
-                      <tr style={{ background: "#F4F7F4", borderBottom: "1.5px solid #D2E0D4", color: "#1E5128" }}>
-                        <th style={{ padding: "10px 12px" }}>Date</th>
-                        <th style={{ padding: "10px 12px" }}>Customer</th>
-                        <th style={{ padding: "10px 12px" }}>Qty</th>
-                        <th style={{ padding: "10px 12px" }}>Total</th>
-                        <th style={{ padding: "10px 12px" }}>Paid</th>
-                        <th style={{ padding: "10px 12px" }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAdminOrders.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#6A7B6C" }}>No matching orders found.</td>
-                        </tr>
-                      ) : (
-                        filteredAdminOrders.map((o) => (
-                          <tr key={o.id} style={{ borderBottom: "1px solid #E2EBE1", opacity: o.cancelled ? 0.5 : 1 }}>
-                            <td style={{ padding: "10px 12px", whiteSpace: "nowrap", fontSize: 11, color: "#6A7B6C" }}>{o.orderDate || formatDate(o.ts)}</td>
-                            <td style={{ padding: "10px 12px" }}>
-                              <div style={{ fontWeight: 600, color: "#1E5128" }}>{o.name} {o.cancelled && <span style={{ color: "#D32F2F", fontSize: 10 }}>(CANCELLED)</span>}</div>
-                              <div style={{ fontSize: 11, color: "#6A7B6C" }}>{o.floor} · {o.mobile}</div>
-                            </td>
-                            <td style={{ padding: "10px 12px", fontWeight: 700 }}>{o.count}</td>
-                            <td style={{ padding: "10px 12px", fontWeight: 700 }}>₹{o.totalCost}</td>
-                            <td style={{ padding: "10px 12px" }}>
-                              {editingOrderId === o.id ? (
-                                <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                                  <input
-                                    type="number"
-                                    style={{ width: 60, padding: 4, fontSize: 12, borderRadius: 6, border: "1px solid #D2E0D4" }}
-                                    value={manualPaidInput}
-                                    onChange={(e) => setManualPaidInput(e.target.value)}
-                                  />
-                                  <button
-                                    onClick={() => updateOrderPayment(o.id, manualPaidInput, o.totalCost)}
-                                    style={{ border: "none", background: "#2E7D32", color: "#FFF", padding: "4px 8px", borderRadius: 6, fontSize: 11 }}
-                                  >
-                                    Save
-                                  </button>
-                                </div>
-                              ) : (
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span style={{ fontWeight: 700, color: o.paid ? "#2E7D32" : "#D32F2F" }}>₹{o.amountPaid}</span>
-                                  <button
-                                    onClick={() => { setEditingOrderId(o.id); setManualPaidInput(o.amountPaid.toString()); }}
-                                    style={{ border: "none", background: "none", color: "#6A7B6C", padding: 0 }}
-                                  >
-                                    <FaEdit size={11} />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                            <td style={{ padding: "10px 12px" }}>
-                              <button
-                                onClick={() => updateOrderPayment(o.id, o.paid ? 0 : o.totalCost, o.totalCost)}
-                                style={{
-                                  border: "none",
-                                  padding: "4px 8px",
-                                  borderRadius: 6,
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  background: o.paid ? "#E8F5E9" : "#FFEBEE",
-                                  color: o.paid ? "#2E7D32" : "#D32F2F"
-                                }}
-                              >
-                                {o.paid ? "Fully Paid" : "Mark Full"}
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        <div style={{ textAlign: "center", marginTop: 26, fontSize: 12, color: "#6A7B6C" }}>
-          <FaUtensils size={12} style={{ verticalAlign: "-2px", marginRight: 4, color: "#1E5128" }} />
-          Healthy Bite Hub · Fresh & Healthy
-        </div>
-      </div>
-    </div>
-  );
-}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {feedbackList.map((item) => (
+                        <div key={item.id} style={{ border: "1px solid #E2EBE1", borderRadius: 12, padding: 14, background: "#F9FCF8" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                padding: "3px 8px",
+                                borderRadius: 6,
+                                background: item.type === "Complaint" ? "#FFEBEE" : item.type === "Suggestion" ? "#E3F2FD" : "#E8F5E9",
+                                color: item.type === "Complaint" ? "#D32F2F
